@@ -16,6 +16,7 @@ export interface User {
   role: Role;
   assignedClass?: ClassName; // For wali_kelas and siswa
   nisn?: string;
+  nip?: string;
   agama?: Agama;
   adminTitle?: string; // e.g. "Admin Utama", "Admin Kesiswaan", "Admin Kurikulum & IT"
   avatarUrl?: string;

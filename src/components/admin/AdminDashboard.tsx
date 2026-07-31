@@ -30,6 +30,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   // Form State for Add User
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importTargetRole, setImportTargetRole] = useState<Role>('siswa');
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<Role>('siswa');
   const [newUserClass, setNewUserClass] = useState<ClassName>('7A');
@@ -533,10 +534,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
               </select>
 
               <button
-                onClick={() => setIsImportModalOpen(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm"
+                onClick={() => {
+                  setImportTargetRole('siswa');
+                  setIsImportModalOpen(true);
+                }}
+                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
               >
-                <Upload className="w-4 h-4" /> Import Excel / PDF
+                <Upload className="w-4 h-4" /> Import Siswa (Gambar/File)
+              </button>
+
+              <button
+                onClick={() => {
+                  setImportTargetRole('wali_kelas');
+                  setIsImportModalOpen(true);
+                }}
+                className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
+              >
+                <ImageIcon className="w-4 h-4" /> Import Wali Kelas (Gambar/File)
               </button>
 
               <button
@@ -1006,6 +1020,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 outline-none"
                   />
                 </div>
+              </div>
+
+              {/* Import Wali Kelas from Image/File Shortcut */}
+              <div className="mt-4 p-4 bg-amber-50/80 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-extrabold text-amber-950">Impor Seluruh Data Wali Kelas Sekaligus</h5>
+                    <p className="text-[11px] text-amber-800">Unggah foto/gambar tabel dokumen atau file Excel wali kelas untuk deteksi otomatis per kelas.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportTargetRole('wali_kelas');
+                    setIsImportModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shrink-0 shadow-sm transition-all"
+                >
+                  <Upload className="w-4 h-4" /> Import Wali Kelas (Gambar / File)
+                </button>
               </div>
             </div>
 
@@ -1597,16 +1634,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
         </div>
       )}
 
-      {/* Student Import Modal */}
+      {/* Data Import Modal (Siswa & Wali Kelas) */}
       <StudentImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         defaultClass={selectedClassForImport}
+        defaultRole={importTargetRole}
         onSuccessImport={(count) => {
           setUsers(getStoredUsers());
           setHasUnsavedChanges(true);
-          setLastActionInfo(`Impor ${count} siswa baru`);
-          alert(`Berhasil mengimpor ${count} siswa baru ke dalam sistem! Klik "Simpan Perubahan" untuk konfirmasi.`);
+          const typeLabel = importTargetRole === 'wali_kelas' ? 'wali kelas' : 'siswa';
+          setLastActionInfo(`Impor ${count} data ${typeLabel} baru`);
+          alert(`Berhasil mengimpor ${count} data ${typeLabel} baru ke dalam sistem! Klik "Simpan Perubahan" untuk konfirmasi.`);
         }}
       />
     </div>
