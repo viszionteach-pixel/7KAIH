@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Shield, Users, UserPlus, Settings, Database, RefreshCw, Key,
   CheckCircle2, Trash2, Edit, Save, AlertTriangle, FileSpreadsheet, Lock, Upload,
-  Building2, Image as ImageIcon, RotateCcw, Award, FileText
+  Building2, Image as ImageIcon, RotateCcw, Award, FileText, Search, Plus, Eye, Filter, X
 } from 'lucide-react';
 import { User, Role, ClassName, MonthlyReportConfig } from '../../types';
 import { ALL_CLASSES } from '../../data/initialData';
@@ -35,6 +35,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   // Password Reset Modal
   const [resetPassUser, setResetPassUser] = useState<User | null>(null);
   const [newPasswordVal, setNewPasswordVal] = useState('');
+
+  // Class Cards Management State
+  const [classGradeFilter, setClassGradeFilter] = useState<'ALL' | '7' | '8' | '9'>('ALL');
+  const [classSearchQuery, setClassSearchQuery] = useState('');
+  const [selectedClassDetail, setSelectedClassDetail] = useState<ClassName | null>(null);
+  const [selectedClassForImport, setSelectedClassForImport] = useState<ClassName>('7A');
+  const [studentSearchInClassModal, setStudentSearchInClassModal] = useState('');
 
   // School Identity & Config Form State
   const [namaSekolah, setNamaSekolah] = useState(schoolConfig.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN');
@@ -104,6 +111,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     setIsAddingUser(false);
     setNewUserName('');
     setNewUserPassword('');
+  };
+
+  // Helper for Class Card Actions
+  const handleOpenAddStudentForClass = (clsName: ClassName) => {
+    setNewUserRole('siswa');
+    setNewUserClass(clsName);
+    setIsAddingUser(true);
+  };
+
+  const handleOpenImportForClass = (clsName: ClassName) => {
+    setSelectedClassForImport(clsName);
+    setIsImportModalOpen(true);
+  };
+
+  const handleDeleteUser = (userToDelete: User) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus siswa "${userToDelete.name}" dari Kelas ${userToDelete.assignedClass}?`)) {
+      const updated = users.filter((u) => u.id !== userToDelete.id);
+      saveStoredUsers(updated);
+      setUsers(updated);
+    }
   };
 
   // Handle Password Reset
@@ -335,27 +362,145 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
         </div>
       )}
 
-      {/* TAB 2: 32 CLASSES DISTRIBUTION */}
+      {/* TAB 2: 32 CLASSES DISTRIBUTION & DIRECT STUDENT MANAGEMENT */}
       {activeTab === 'classes' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
-          <div>
-            <h3 className="text-lg font-extrabold text-slate-900">Distribusi 32 Kelas SMPN 10 Balikpapan</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Kelas 7 (11 kelas: 7A-7K), Kelas 8 (11 kelas: 8A-8K), Kelas 9 (10 kelas: 9A-9J).
-            </p>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-blue-600" />
+                Distribusi & Manajemen Siswa per Kartu Kelas (32 Kelas)
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Kelola pendaftaran siswa langsung melalui tiap kartu kelas. Klik "+ Tambah Siswa" untuk menambah anggota baru ke kelas tersebut.
+              </p>
+            </div>
+
+            {/* Filter and Search */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Cari kelas (misal: 7A, 8B)..."
+                  value={classSearchQuery}
+                  onChange={(e) => setClassSearchQuery(e.target.value)}
+                  className="pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 w-44 sm:w-56"
+                />
+              </div>
+
+              {/* Grade Filter Pills */}
+              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold gap-1">
+                <button
+                  onClick={() => setClassGradeFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    classGradeFilter === 'ALL' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Semua (32)
+                </button>
+                <button
+                  onClick={() => setClassGradeFilter('7')}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    classGradeFilter === '7' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Kelas 7 (11)
+                </button>
+                <button
+                  onClick={() => setClassGradeFilter('8')}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    classGradeFilter === '8' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Kelas 8 (11)
+                </button>
+                <button
+                  onClick={() => setClassGradeFilter('9')}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    classGradeFilter === '9' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Kelas 9 (10)
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-            {ALL_CLASSES.map((cls) => {
-              const classUserCount = users.filter((u) => u.assignedClass === cls && u.role === 'siswa').length;
+          {/* Grid of 32 Class Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {ALL_CLASSES.filter((cls) => {
+              const matchesGrade =
+                classGradeFilter === 'ALL' ||
+                (classGradeFilter === '7' && cls.startsWith('7')) ||
+                (classGradeFilter === '8' && cls.startsWith('8')) ||
+                (classGradeFilter === '9' && cls.startsWith('9'));
+              const matchesSearch = cls.toLowerCase().includes(classSearchQuery.toLowerCase());
+              return matchesGrade && matchesSearch;
+            }).map((cls) => {
+              const classStudents = users.filter((u) => u.assignedClass === cls && u.role === 'siswa');
+              const classUserCount = classStudents.length;
               const wk = users.find((u) => u.assignedClass === cls && u.role === 'wali_kelas');
+              const gradeNumber = cls.charAt(0);
+
+              const colorScheme =
+                gradeNumber === '7'
+                  ? { bg: 'bg-blue-50/60', border: 'border-blue-200 hover:border-blue-400', badge: 'bg-blue-100 text-blue-800', btn: 'bg-blue-600 hover:bg-blue-700' }
+                  : gradeNumber === '8'
+                  ? { bg: 'bg-purple-50/60', border: 'border-purple-200 hover:border-purple-400', badge: 'bg-purple-100 text-purple-800', btn: 'bg-purple-600 hover:bg-purple-700' }
+                  : { bg: 'bg-rose-50/60', border: 'border-rose-200 hover:border-rose-400', badge: 'bg-rose-100 text-rose-800', btn: 'bg-rose-600 hover:bg-rose-700' };
+
               return (
-                <div key={cls} className="p-4 rounded-xl border border-slate-200 bg-slate-50 text-center">
-                  <span className="text-lg font-black text-blue-900">Kelas {cls}</span>
-                  <p className="text-[11px] font-bold text-slate-600 mt-1">{classUserCount} Siswa</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 truncate" title={wk?.name}>
-                    WK: {wk ? wk.name : 'Belum diset'}
-                  </p>
+                <div
+                  key={cls}
+                  className={`p-4 rounded-2xl border ${colorScheme.border} ${colorScheme.bg} transition-all shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 relative group`}
+                >
+                  {/* Card Header */}
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${colorScheme.badge}`}>
+                        Tingkat {gradeNumber}
+                      </span>
+                      <span className="text-[11px] font-extrabold text-slate-700 bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-2xs">
+                        {classUserCount} Siswa
+                      </span>
+                    </div>
+
+                    <h4 className="text-xl font-black text-slate-900 tracking-tight">
+                      Kelas {cls}
+                    </h4>
+
+                    <p className="text-[11px] text-slate-500 font-medium mt-1 truncate" title={wk ? wk.name : 'Wali kelas belum diset'}>
+                      <strong>WK:</strong> {wk ? wk.name : <span className="text-amber-600 italic">Belum diset</span>}
+                    </p>
+                  </div>
+
+                  {/* Class Card Actions */}
+                  <div className="pt-2 border-t border-slate-200/60 space-y-2">
+                    <button
+                      onClick={() => handleOpenAddStudentForClass(cls)}
+                      className={`w-full py-2 px-3 ${colorScheme.btn} text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all`}
+                    >
+                      <UserPlus className="w-3.5 h-3.5" /> + Tambah Siswa Baru
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setSelectedClassDetail(cls)}
+                        className="flex-1 py-1.5 px-2 bg-white hover:bg-slate-100 text-slate-800 font-bold border border-slate-300 rounded-lg text-[11px] flex items-center justify-center gap-1 transition-all"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-slate-600" /> Lihat & Kelola ({classUserCount})
+                      </button>
+
+                      <button
+                        onClick={() => handleOpenImportForClass(cls)}
+                        className="py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[11px] flex items-center justify-center gap-1 transition-all shrink-0"
+                        title={`Import Excel/PDF ke Kelas ${cls}`}
+                      >
+                        <Upload className="w-3.5 h-3.5" /> Import
+                      </button>
+                    </div>
+                  </div>
                 </div>
               );
             })}
@@ -776,11 +921,180 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
           </div>
         </div>
       )}
+      {/* Class Detail Modal (Kartu Detail Kelas) */}
+      {selectedClassDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-6 max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-900 font-black text-xl flex items-center justify-center shadow-xs">
+                  {selectedClassDetail}
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">
+                    Pengelolaan Siswa Kelas {selectedClassDetail}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Wali Kelas:{' '}
+                    <strong>
+                      {users.find((u) => u.assignedClass === selectedClassDetail && u.role === 'wali_kelas')?.name || 'Belum diset'}
+                    </strong>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setSelectedClassDetail(null);
+                  setStudentSearchInClassModal('');
+                }}
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Actions Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Cari siswa di kelas ini..."
+                  value={studentSearchInClassModal}
+                  onChange={(e) => setStudentSearchInClassModal(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  onClick={() => {
+                    handleOpenImportForClass(selectedClassDetail);
+                  }}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-all"
+                >
+                  <Upload className="w-4 h-4" /> Import Excel/PDF
+                </button>
+
+                <button
+                  onClick={() => {
+                    handleOpenAddStudentForClass(selectedClassDetail);
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-all"
+                >
+                  <UserPlus className="w-4 h-4" /> + Tambah Siswa Baru
+                </button>
+              </div>
+            </div>
+
+            {/* Student Table for Selected Class */}
+            <div className="overflow-y-auto flex-1 border border-slate-200 rounded-2xl bg-white">
+              {(() => {
+                const classStudents = users
+                  .filter((u) => u.assignedClass === selectedClassDetail && u.role === 'siswa')
+                  .filter((u) =>
+                    u.name.toLowerCase().includes(studentSearchInClassModal.toLowerCase()) ||
+                    u.username.toLowerCase().includes(studentSearchInClassModal.toLowerCase())
+                  );
+
+                if (classStudents.length === 0) {
+                  return (
+                    <div className="p-12 text-center space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                        <Users className="w-6 h-6" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-700">
+                        Belum Ada Siswa Terdaftar di Kelas {selectedClassDetail}
+                      </p>
+                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                        Gunakan tombol di atas untuk menambahkan siswa secara manual satu per satu atau impor sekaligus dari Excel/PDF.
+                      </p>
+                      <button
+                        onClick={() => handleOpenAddStudentForClass(selectedClassDetail)}
+                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl inline-flex items-center gap-2 shadow-md transition-all mt-2"
+                      >
+                        <UserPlus className="w-4 h-4" /> Tambah Siswa Pertama Ke Kelas {selectedClassDetail}
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider sticky top-0 bg-slate-50">
+                        <th className="py-3 px-4 w-12 text-center">No</th>
+                        <th className="py-3 px-4">Nama Lengkap Siswa</th>
+                        <th className="py-3 px-4">Username / ID Login</th>
+                        <th className="py-3 px-4">Agama</th>
+                        <th className="py-3 px-4 text-right">Kelola Akun</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {classStudents.map((st, idx) => (
+                        <tr key={st.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                          <td className="py-3 px-4 font-bold text-slate-900">{st.name}</td>
+                          <td className="py-3 px-4 text-slate-600 font-mono text-[11px]">{st.username}</td>
+                          <td className="py-3 px-4">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              {st.agama || 'Islam'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right space-x-1">
+                            <button
+                              onClick={() => setResetPassUser(st)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[10px] inline-flex items-center gap-1 transition-all"
+                              title="Reset Password Siswa"
+                            >
+                              <Key className="w-3 h-3" /> Password
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(st)}
+                              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-lg text-[10px] inline-flex items-center gap-1 transition-all"
+                              title="Hapus Siswa Dari Kelas Ini"
+                            >
+                              <Trash2 className="w-3 h-3 text-rose-600" /> Hapus
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-between items-center pt-2 text-xs border-t border-slate-100">
+              <span className="text-slate-500 font-medium">
+                Total:{' '}
+                <strong>
+                  {users.filter((u) => u.assignedClass === selectedClassDetail && u.role === 'siswa').length}
+                </strong>{' '}
+                Siswa terdaftar
+              </span>
+              <button
+                onClick={() => {
+                  setSelectedClassDetail(null);
+                  setStudentSearchInClassModal('');
+                }}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl transition-all"
+              >
+                Tutup Kartu Kelas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Student Import Modal */}
       <StudentImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        defaultClass="7A"
+        defaultClass={selectedClassForImport}
         onSuccessImport={(count) => {
           setUsers(getStoredUsers());
           alert(`Berhasil mengimpor ${count} siswa baru ke dalam sistem!`);
