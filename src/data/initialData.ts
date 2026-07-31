@@ -13,6 +13,10 @@ export const INITIAL_SCHOOL_CONFIG: MonthlyReportConfig = {
   nipWaliKelas: '19750814 200212 2 003',
   namaKepalaSekolah: 'Drs. H. Ismail, M.Pd.',
   nipKepalaSekolah: '19680512 199403 1 005',
+  namaSekolah: 'SMP NEGERI 10 BALIKPAPAN',
+  alamatSekolah: 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur 76125',
+  logoUrl: '/logo_smpn10.jpg',
+  stempelUrl: '',
 };
 
 // 3 Admins

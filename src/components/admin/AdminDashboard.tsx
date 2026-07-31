@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Shield, Users, UserPlus, Settings, Database, RefreshCw, Key,
-  CheckCircle2, Trash2, Edit, Save, AlertTriangle, FileSpreadsheet, Lock, Upload
+  CheckCircle2, Trash2, Edit, Save, AlertTriangle, FileSpreadsheet, Lock, Upload,
+  Building2, Image as ImageIcon, RotateCcw, Award, FileText
 } from 'lucide-react';
 import { User, Role, ClassName, MonthlyReportConfig } from '../../types';
 import { ALL_CLASSES } from '../../data/initialData';
@@ -35,10 +36,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   const [resetPassUser, setResetPassUser] = useState<User | null>(null);
   const [newPasswordVal, setNewPasswordVal] = useState('');
 
-  // School Config Form State
+  // School Identity & Config Form State
+  const [namaSekolah, setNamaSekolah] = useState(schoolConfig.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN');
+  const [alamatSekolah, setAlamatSekolah] = useState(
+    schoolConfig.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur 76125'
+  );
+  const [logoUrl, setLogoUrl] = useState(schoolConfig.logoUrl || '/logo_smpn10.jpg');
+  const [stempelUrl, setStempelUrl] = useState(schoolConfig.stempelUrl || '');
+
   const [namaKepala, setNamaKepala] = useState(schoolConfig.namaKepalaSekolah);
   const [nipKepala, setNipKepala] = useState(schoolConfig.nipKepalaSekolah || '');
   const [namaWali, setNamaWali] = useState(schoolConfig.namaWaliKelas);
+  const [nipWali, setNipWali] = useState(schoolConfig.nipWaliKelas || '');
 
   useEffect(() => {
     setUsers(getStoredUsers());
@@ -90,18 +99,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     alert(`Password untuk ${resetPassUser.name} berhasil diubah!`);
   };
 
+  // Image upload helpers
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      alert('Ukuran file logo terlalu besar. Maksimal 4MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setLogoUrl(event.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleStempelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      alert('Ukuran file stempel terlalu besar. Maksimal 4MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setStempelUrl(event.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Handle Save School Config
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
     const updated: MonthlyReportConfig = {
       ...schoolConfig,
-      namaKepalaSekolah: namaKepala,
-      nipKepalaSekolah: nipKepala,
-      namaWaliKelas: namaWali,
+      namaSekolah: namaSekolah.trim() || 'SMP NEGERI 10 BALIKPAPAN',
+      alamatSekolah: alamatSekolah.trim(),
+      logoUrl: logoUrl.trim() || '/logo_smpn10.jpg',
+      stempelUrl: stempelUrl.trim(),
+      namaKepalaSekolah: namaKepala.trim(),
+      nipKepalaSekolah: nipKepala.trim(),
+      namaWaliKelas: namaWali.trim(),
+      nipWaliKelas: nipWali.trim(),
     };
     saveStoredSchoolConfig(updated);
     setSchoolConfig(updated);
-    alert('Pengaturan Sekolah & Tanda Tangan Berhasil Disimpan!');
+    alert('Identitas Sekolah, Logo, Stempel & TTD Berhasil Disimpan!');
   };
 
   // Handle Reset System Data
@@ -170,7 +217,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
             activeTab === 'config' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
-          <Settings className="w-4 h-4" /> Pengaturan TTD & Kop Surat
+          <Building2 className="w-4 h-4" /> Identitas, Logo & Stempel Sekolah
         </button>
 
         <button
@@ -298,57 +345,250 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
         </div>
       )}
 
-      {/* TAB 3: SCHOOL CONFIG (KOP SURAT & TTD) */}
+      {/* TAB 3: SCHOOL CONFIG (IDENTITAS, LOGO, STEMPEL & TTD) */}
       {activeTab === 'config' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm max-w-2xl space-y-6">
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm max-w-4xl space-y-8">
           <div>
-            <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-              <Settings className="w-5 h-5 text-rose-600" />
-              Pengaturan Kop Surat & Tanda Tangan Laporan
+            <h3 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+              <Building2 className="w-6 h-6 text-rose-600" />
+              Pengaturan Identitas Sekolah, Logo, Stempel & Kop Surat
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              Informasi ini akan tercetak secara otomatis di bagian bawah Laporan Bulanan Siswa (PDF / Excel Potrait).
+              Atur nama sekolah, alamat, logo resmi, stempel basah, serta pejabat penandatangan laporan bulanan siswa.
             </p>
           </div>
 
-          <form onSubmit={handleSaveConfig} className="space-y-4 text-xs">
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Nama Kepala Sekolah (Kepala SMPN 10):</label>
-              <input
-                type="text"
-                value={namaKepala}
-                onChange={(e) => setNamaKepala(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 outline-none"
-                required
-              />
+          <form onSubmit={handleSaveConfig} className="space-y-8 text-xs">
+            {/* BAGIAN 1: IDENTITAS UTAMA SEKOLAH */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm border-b border-slate-200 pb-2">
+                <Building2 className="w-4 h-4 text-blue-600" />
+                <span>1. Identitas & Kop Surat Resmi Sekolah</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nama Resmi Sekolah:</label>
+                  <input
+                    type="text"
+                    value={namaSekolah}
+                    onChange={(e) => setNamaSekolah(e.target.value)}
+                    placeholder="Contoh: SMP NEGERI 10 BALIKPAPAN"
+                    className="w-full p-3 bg-white border border-slate-300 rounded-xl font-extrabold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Nama ini akan ditampilkan pada Kop Surat, Sertifikat, dan Header aplikasi.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Alamat Lengkap & Kota Sekolah:</label>
+                  <textarea
+                    rows={2}
+                    value={alamatSekolah}
+                    onChange={(e) => setAlamatSekolah(e.target.value)}
+                    placeholder="Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara..."
+                    className="w-full p-3 bg-white border border-slate-300 rounded-xl text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">NIP Kepala Sekolah:</label>
-              <input
-                type="text"
-                value={nipKepala}
-                onChange={(e) => setNipKepala(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 outline-none"
-              />
+            {/* BAGIAN 2: LOGO SEKOLAH */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm">
+                  <ImageIcon className="w-4 h-4 text-emerald-600" />
+                  <span>2. Logo Resmi Sekolah</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLogoUrl('/logo_smpn10.jpg')}
+                  className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Gunakan Logo Default SMPN 10
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                {/* Logo Preview */}
+                <div className="relative shrink-0 flex flex-col items-center gap-1.5">
+                  <div className="w-24 h-24 rounded-2xl border-2 border-slate-300 p-2 bg-white flex items-center justify-center shadow-md overflow-hidden">
+                    <img
+                      src={logoUrl}
+                      alt="Pratinjau Logo"
+                      className="max-w-full max-h-full object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/logo_smpn10.jpg';
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-500">Pratinjau Logo</span>
+                </div>
+
+                {/* Upload Controls */}
+                <div className="space-y-2 flex-1 w-full">
+                  <label className="block font-bold text-slate-700 mb-1">Upload File Logo Baru (PNG / JPG / WebP):</label>
+                  <div className="flex items-center gap-3">
+                    <label className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl cursor-pointer flex items-center gap-2 shadow-sm transition-all text-xs">
+                      <Upload className="w-4 h-4" /> Pilih File Logo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <span className="text-[11px] text-slate-500">Maksimal file 4MB</span>
+                  </div>
+
+                  <div className="mt-2">
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Atau Masukkan URL Logo (Opsional):</label>
+                    <input
+                      type="text"
+                      value={logoUrl}
+                      onChange={(e) => setLogoUrl(e.target.value)}
+                      placeholder="https://... / path logo"
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-[11px] outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Nama Default Wali Kelas:</label>
-              <input
-                type="text"
-                value={namaWali}
-                onChange={(e) => setNamaWali(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 outline-none"
-              />
+            {/* BAGIAN 3: STEMPEL RESMI SEKOLAH */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm">
+                  <Award className="w-4 h-4 text-purple-600" />
+                  <span>3. Stempel Resmi Sekolah (Untuk Cap TTD Laporan)</span>
+                </div>
+                {stempelUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setStempelUrl('')}
+                    className="text-[11px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Hapus Stempel
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                {/* Stempel Preview */}
+                <div className="relative shrink-0 flex flex-col items-center gap-1.5">
+                  <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 p-2 bg-white flex items-center justify-center shadow-sm overflow-hidden relative">
+                    {stempelUrl ? (
+                      <img
+                        src={stempelUrl}
+                        alt="Stempel Sekolah"
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    ) : (
+                      <div className="text-center p-2 text-slate-400">
+                        <Award className="w-8 h-8 mx-auto mb-1 opacity-30" />
+                        <span className="text-[9px] font-bold block leading-tight">Belum Ada Stempel</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-500">Pratinjau Stempel</span>
+                </div>
+
+                {/* Upload Stempel Controls */}
+                <div className="space-y-2 flex-1 w-full">
+                  <label className="block font-bold text-slate-700 mb-1">Upload File Stempel Basah (Format PNG Transparan disarankan):</label>
+                  <div className="flex items-center gap-3">
+                    <label className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl cursor-pointer flex items-center gap-2 shadow-sm transition-all text-xs">
+                      <Upload className="w-4 h-4" /> Upload Gambar Stempel
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleStempelUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <span className="text-[11px] text-slate-500">Otomatis muncul pada TTD Kepala Sekolah</span>
+                  </div>
+
+                  <div className="mt-2">
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Atau URL Gambar Stempel (Opsional):</label>
+                    <input
+                      type="text"
+                      value={stempelUrl}
+                      onChange={(e) => setStempelUrl(e.target.value)}
+                      placeholder="https://... / data:image/png;base64..."
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-[11px] outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <button
-              type="submit"
-              className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" /> Simpan Pengaturan Kop Surat
-            </button>
+            {/* BAGIAN 4: PEJABAT PENANDATANGAN */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm border-b border-slate-200 pb-2">
+                <FileText className="w-4 h-4 text-amber-600" />
+                <span>4. Pejabat Penandatangan Laporan Bulanan</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nama Kepala Sekolah:</label>
+                  <input
+                    type="text"
+                    value={namaKepala}
+                    onChange={(e) => setNamaKepala(e.target.value)}
+                    placeholder="Drs. H. Ismail, M.Pd."
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-900 outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">NIP Kepala Sekolah:</label>
+                  <input
+                    type="text"
+                    value={nipKepala}
+                    onChange={(e) => setNipKepala(e.target.value)}
+                    placeholder="19680512 199403 1 005"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nama Default Wali Kelas:</label>
+                  <input
+                    type="text"
+                    value={namaWali}
+                    onChange={(e) => setNamaWali(e.target.value)}
+                    placeholder="Endang Setyowati, S.Pd."
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">NIP Default Wali Kelas:</label>
+                  <input
+                    type="text"
+                    value={nipWali}
+                    onChange={(e) => setNipWali(e.target.value)}
+                    placeholder="19750814 200212 2 003"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="submit"
+                className="px-8 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+              >
+                <Save className="w-5 h-5" /> Simpan Pengaturan Identitas & Kop Surat
+              </button>
+            </div>
           </form>
         </div>
       )}

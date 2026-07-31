@@ -173,7 +173,7 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
           {/* Official Kop Surat Header */}
           <div className="border-b-4 border-slate-900 pb-3 mb-6 flex items-center justify-between text-center sm:text-left">
             <div className="flex items-center gap-4">
-              <SchoolLogo size="lg" className="shrink-0" />
+              <SchoolLogo customLogoUrl={config.logoUrl} size="lg" className="shrink-0" />
               <div>
                 <h4 className="text-xs font-extrabold uppercase tracking-widest text-slate-600">
                   PEMERINTAH KOTA BALIKPAPAN
@@ -182,10 +182,10 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
                   DINAS PENDIDIKAN DAN KEBUDAYAAN
                 </h3>
                 <h2 className="text-lg font-black uppercase text-blue-900 tracking-tight">
-                  SMP NEGERI 10 BALIKPAPAN
+                  {config.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN'}
                 </h2>
-                <p className="text-[10px] text-slate-500 mt-0.5">
-                  Jl. Syarifuddin Yoes, Sepinggan, Kec. Balikpapan Selatan, Kota Balikpapan, Kalimantan Timur
+                <p className="text-[10px] text-slate-500 mt-0.5 max-w-xl">
+                  {config.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur'}
                 </p>
               </div>
             </div>
@@ -309,18 +309,26 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
               <p className="text-slate-600 mb-1">Mengetahui,</p>
               <p className="font-bold text-slate-800">Wali Kelas {student.assignedClass}</p>
               <div className="h-20 flex items-center justify-center my-1">
-                <span className="text-[10px] text-slate-400 italic">[ Tanda Tangan & Stempel ]</span>
+                <span className="text-[10px] text-slate-400 italic">[ Tanda Tangan ]</span>
               </div>
               <p className="font-bold text-slate-900 underline">{config.namaWaliKelas}</p>
               <p className="text-[10px] text-slate-500">NIP. {config.nipWaliKelas || '19750814 200212 2 003'}</p>
             </div>
 
-            {/* TTD Kepala Sekolah */}
-            <div className="text-center w-64">
+            {/* TTD Kepala Sekolah & Stempel */}
+            <div className="text-center w-64 relative">
               <p className="text-slate-600 mb-1">Balikpapan, {daysInMonth} {monthName} {year}</p>
-              <p className="font-bold text-slate-800">Kepala SMP Negeri 10 Balikpapan</p>
-              <div className="h-20 flex items-center justify-center my-1">
-                <span className="text-[10px] text-slate-400 italic">[ Tanda Tangan & Stempel Resmi ]</span>
+              <p className="font-bold text-slate-800">Kepala {config.namaSekolah || 'SMP Negeri 10 Balikpapan'}</p>
+              <div className="h-20 flex items-center justify-center my-1 relative">
+                {config.stempelUrl ? (
+                  <img
+                    src={config.stempelUrl}
+                    alt="Stempel Resmi Sekolah"
+                    className="max-h-16 max-w-full object-contain drop-shadow-sm opacity-90 transition-all"
+                  />
+                ) : (
+                  <span className="text-[10px] text-slate-400 italic">[ Tanda Tangan & Stempel Resmi ]</span>
+                )}
               </div>
               <p className="font-bold text-slate-900 underline">{config.namaKepalaSekolah}</p>
               <p className="text-[10px] text-slate-500">NIP. {config.nipKepalaSekolah || '19680512 199403 1 005'}</p>

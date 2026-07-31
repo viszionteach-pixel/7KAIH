@@ -120,4 +120,8 @@ export interface MonthlyReportConfig {
   nipWaliKelas?: string;
   namaKepalaSekolah: string;
   nipKepalaSekolah?: string;
+  namaSekolah?: string;
+  alamatSekolah?: string;
+  logoUrl?: string;
+  stempelUrl?: string;
 }
