@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account in the system (Siswa, Wali Kelas, Admin)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["siswa", "wali_kelas", "admin"] },
+        "assignedClass": { "type": "string" },
+        "agama": { "type": "string" },
+        "nisn": { "type": "string" }
+      },
+      "required": ["id", "username", "name", "role"]
+    },
+    "KAIHLog": {
+      "title": "KAIHLog",
+      "description": "Daily 7 Habit entry submitted by a student",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentId": { "type": "string" },
+        "class": { "type": "string" },
+        "agama": { "type": "string" },
+        "habits": { "type": "object" },
+        "notes": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "date", "studentName", "class", "habits"]
+    },
+    "SchoolConfig": {
+      "title": "SchoolConfig",
+      "description": "Identity, logo, stempel, and signature details of the school",
+      "type": "object",
+      "properties": {
+        "namaSekolah": { "type": "string" },
+        "alamatSekolah": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "stempelUrl": { "type": "string" },
+        "namaKepalaSekolah": { "type": "string" },
+        "nipKepalaSekolah": { "type": "string" },
+        "namaWaliKelas": { "type": "string" },
+        "nipWaliKelas": { "type": "string text" }
+      }
+    },
+    "CustomPassword": {
+      "title": "CustomPassword",
+      "description": "Custom password override for a user",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "password": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Registered users"
+    },
+    "kaih_logs/{logId}": {
+      "schema": { "$ref": "#/entities/KAIHLog" },
+      "description": "Daily habit logs"
+    },
+    "school_config/{configId}": {
+      "schema": { "$ref": "#/entities/SchoolConfig" },
+      "description": "School identity and configuration"
+    },
+    "passwords/{username}": {
+      "schema": { "$ref": "#/entities/CustomPassword" },
+      "description": "Password overrides"
+    }
+  }
+}

@@ -29,8 +29,16 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
   const [allLogs, setAllLogs] = useState<KAIHEntry[]>([]);
 
   useEffect(() => {
-    setAllUsers(getStoredUsers());
-    setAllLogs(getStoredLogs());
+    const loadData = () => {
+      setAllUsers(getStoredUsers());
+      setAllLogs(getStoredLogs());
+    };
+    loadData();
+
+    window.addEventListener('kaih_data_updated', loadData);
+    return () => {
+      window.removeEventListener('kaih_data_updated', loadData);
+    };
   }, []);
 
   // Filter students belonging to this class

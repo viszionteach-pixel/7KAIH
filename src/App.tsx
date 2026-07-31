@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from './types';
-import { getCurrentUser, setCurrentUser, getStoredUsers } from './services/storage';
+import { getCurrentUser, setCurrentUser, getStoredUsers, initFirebaseRealtimeSync } from './services/storage';
 import { Navbar } from './components/Navbar';
 import { LoginModal } from './components/LoginModal';
 import { AboutKAIH } from './components/AboutKAIH';
@@ -14,9 +14,21 @@ export default function App() {
   const [currentUser, setUser] = useState<User | null>(null);
   const [isAboutOpen, setIsAboutOpen] = useState<boolean>(false);
   const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState<boolean>(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
 
   useEffect(() => {
+    initFirebaseRealtimeSync();
     setUser(getCurrentUser());
+    setAllUsers(getStoredUsers());
+
+    const handleDataUpdate = () => {
+      setAllUsers(getStoredUsers());
+    };
+
+    window.addEventListener('kaih_data_updated', handleDataUpdate);
+    return () => {
+      window.removeEventListener('kaih_data_updated', handleDataUpdate);
+    };
   }, []);
 
   const handleLoginSuccess = (user: User) => {
@@ -29,8 +41,6 @@ export default function App() {
     setUser(null);
     setCurrentUser(null);
   };
-
-  const allUsers = getStoredUsers();
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 font-sans flex flex-col">

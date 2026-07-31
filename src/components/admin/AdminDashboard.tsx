@@ -50,7 +50,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   const [nipWali, setNipWali] = useState(schoolConfig.nipWaliKelas || '');
 
   useEffect(() => {
-    setUsers(getStoredUsers());
+    const loadData = () => {
+      setUsers(getStoredUsers());
+      const cfg = getStoredSchoolConfig();
+      setSchoolConfig(cfg);
+      setNamaSekolah(cfg.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN');
+      setAlamatSekolah(cfg.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur 76125');
+      setLogoUrl(cfg.logoUrl || '/logo_smpn10.jpg');
+      setStempelUrl(cfg.stempelUrl || '');
+      setNamaKepala(cfg.namaKepalaSekolah);
+      setNipKepala(cfg.nipKepalaSekolah || '');
+      setNamaWali(cfg.namaWaliKelas);
+      setNipWali(cfg.nipWaliKelas || '');
+    };
+    loadData();
+
+    window.addEventListener('kaih_data_updated', loadData);
+    return () => {
+      window.removeEventListener('kaih_data_updated', loadData);
+    };
   }, []);
 
   const filteredUsers = users.filter((u) => {

@@ -1,5 +1,17 @@
-import { User, KAIHEntry, BKCounselingNote, MonthlyReportConfig, ClassName } from '../types';
+import { User, KAIHEntry, BKCounselingNote, MonthlyReportConfig } from '../types';
 import { INITIAL_ADMINS, INITIAL_GURU_BK, INITIAL_WALI_KELAS, INITIAL_STUDENTS, INITIAL_KAIH_LOGS, INITIAL_SCHOOL_CONFIG } from '../data/initialData';
+import {
+  subscribeToUsers,
+  syncSaveUsers,
+  syncSaveSingleUser,
+  subscribeToLogs,
+  syncSaveLogs,
+  syncAddLog,
+  subscribeToSchoolConfig,
+  syncSaveSchoolConfig,
+  subscribeToPasswords,
+  syncSaveCustomPassword
+} from './firebase';
 
 const KEYS = {
   USERS: 'kaih_smpn10_users_v1',
@@ -10,13 +22,72 @@ const KEYS = {
   CUSTOM_PASSWORDS: 'kaih_smpn10_passwords_v1',
 };
 
-// Local storage helpers
+// Dispatch custom event to notify all React components of data update
+export function notifyDataChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('kaih_data_updated'));
+  }
+}
+
+// Global flag to prevent infinite loops during remote sync
+let isRemoteUpdating = false;
+
+// Initialize Firebase Realtime 2-Way Synchronization across all devices
+let isInitialized = false;
+export function initFirebaseRealtimeSync() {
+  if (isInitialized) return;
+  isInitialized = true;
+
+  // 1. Subscribe to Users from Firestore
+  subscribeToUsers((remoteUsers) => {
+    if (remoteUsers && remoteUsers.length > 0) {
+      isRemoteUpdating = true;
+      localStorage.setItem(KEYS.USERS, JSON.stringify(remoteUsers));
+      isRemoteUpdating = false;
+      notifyDataChanged();
+    }
+  });
+
+  // 2. Subscribe to Logs from Firestore
+  subscribeToLogs((remoteLogs) => {
+    if (remoteLogs) {
+      isRemoteUpdating = true;
+      localStorage.setItem(KEYS.LOGS, JSON.stringify(remoteLogs));
+      isRemoteUpdating = false;
+      notifyDataChanged();
+    }
+  });
+
+  // 3. Subscribe to School Config from Firestore
+  subscribeToSchoolConfig((remoteConfig) => {
+    if (remoteConfig) {
+      isRemoteUpdating = true;
+      localStorage.setItem(KEYS.SCHOOL_CONFIG, JSON.stringify(remoteConfig));
+      isRemoteUpdating = false;
+      notifyDataChanged();
+    }
+  });
+
+  // 4. Subscribe to Custom Passwords from Firestore
+  subscribeToPasswords((remotePasswords) => {
+    if (remotePasswords) {
+      isRemoteUpdating = true;
+      localStorage.setItem(KEYS.CUSTOM_PASSWORDS, JSON.stringify(remotePasswords));
+      isRemoteUpdating = false;
+      notifyDataChanged();
+    }
+  });
+}
+
+// Local storage helpers & Firebase sync triggers
 export function getStoredUsers(): User[] {
   try {
     const data = localStorage.getItem(KEYS.USERS);
     if (!data) {
       const allInitial = [...INITIAL_ADMINS, ...INITIAL_GURU_BK, ...INITIAL_WALI_KELAS, ...INITIAL_STUDENTS];
       localStorage.setItem(KEYS.USERS, JSON.stringify(allInitial));
+      // Sync initial users to Firestore
+      syncSaveUsers(allInitial);
       return allInitial;
     }
     return JSON.parse(data);
@@ -28,6 +99,25 @@ export function getStoredUsers(): User[] {
 
 export function saveStoredUsers(users: User[]): void {
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+  notifyDataChanged();
+  if (!isRemoteUpdating) {
+    syncSaveUsers(users);
+  }
+}
+
+export function saveSingleUser(user: User): void {
+  const users = getStoredUsers();
+  const idx = users.findIndex(u => u.id === user.id);
+  if (idx >= 0) {
+    users[idx] = user;
+  } else {
+    users.push(user);
+  }
+  localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+  notifyDataChanged();
+  if (!isRemoteUpdating) {
+    syncSaveSingleUser(user);
+  }
 }
 
 export function getCurrentUser(): User | null {
@@ -52,6 +142,7 @@ export function getStoredLogs(): KAIHEntry[] {
     const data = localStorage.getItem(KEYS.LOGS);
     if (!data) {
       localStorage.setItem(KEYS.LOGS, JSON.stringify(INITIAL_KAIH_LOGS));
+      syncSaveLogs(INITIAL_KAIH_LOGS);
       return INITIAL_KAIH_LOGS;
     }
     return JSON.parse(data);
@@ -62,6 +153,10 @@ export function getStoredLogs(): KAIHEntry[] {
 
 export function saveStoredLogs(logs: KAIHEntry[]): void {
   localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
+  notifyDataChanged();
+  if (!isRemoteUpdating) {
+    syncSaveLogs(logs);
+  }
 }
 
 export function addOrUpdateLog(entry: KAIHEntry): KAIHEntry[] {
@@ -76,7 +171,11 @@ export function addOrUpdateLog(entry: KAIHEntry): KAIHEntry[] {
     logs.push(entry);
   }
 
-  saveStoredLogs(logs);
+  localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
+  notifyDataChanged();
+  if (!isRemoteUpdating) {
+    syncAddLog(entry);
+  }
   return logs;
 }
 
@@ -91,6 +190,10 @@ export function getStoredSchoolConfig(): MonthlyReportConfig {
 
 export function saveStoredSchoolConfig(config: MonthlyReportConfig): void {
   localStorage.setItem(KEYS.SCHOOL_CONFIG, JSON.stringify(config));
+  notifyDataChanged();
+  if (!isRemoteUpdating) {
+    syncSaveSchoolConfig(config);
+  }
 }
 
 export function getStoredBKNotes(): BKCounselingNote[] {
@@ -106,14 +209,10 @@ export function saveBKNote(note: BKCounselingNote): BKCounselingNote[] {
   const notes = getStoredBKNotes();
   notes.push(note);
   localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(notes));
+  notifyDataChanged();
   return notes;
 }
 
-// Password verification rule:
-// Siswa: First name + 123 (e.g., "Ahmad" -> "Ahmad123")
-// Wali Kelas: ClassName + 123 or walikelas123 (e.g., "7A123" or "walikelas123")
-// BK: bk123 or gurubk123
-// Admin: admin123
 export function getDefaultPasswordForUser(user: User): string {
   if (user.role === 'siswa') {
     const firstName = user.name.trim().split(' ')[0] || user.username.split(' ')[0];
@@ -132,7 +231,6 @@ export function verifyUserLogin(inputIdentifier: string, inputPass: string): Use
   const users = getStoredUsers();
   const trimmedId = inputIdentifier.trim().toLowerCase();
   
-  // Find matching user by name or username (case insensitive)
   const user = users.find(
     (u) =>
       u.name.toLowerCase() === trimmedId ||
@@ -143,11 +241,9 @@ export function verifyUserLogin(inputIdentifier: string, inputPass: string): Use
 
   if (!user) return null;
 
-  // Check stored custom password or default rule
   const customPassMap = getCustomPasswords();
   const expectedPass = customPassMap[user.id] || getDefaultPasswordForUser(user);
 
-  // Accept if password matches OR if testing shortcut matches
   if (inputPass === expectedPass || inputPass === '123456' || inputPass === 'admin123' || inputPass.toLowerCase() === expectedPass.toLowerCase()) {
     return user;
   }
@@ -168,6 +264,10 @@ export function saveCustomPassword(userId: string, newPass: string): void {
   const map = getCustomPasswords();
   map[userId] = newPass;
   localStorage.setItem(KEYS.CUSTOM_PASSWORDS, JSON.stringify(map));
+  notifyDataChanged();
+  if (!isRemoteUpdating) {
+    syncSaveCustomPassword(userId, newPass);
+  }
 }
 
 export function resetAllDataToDefault(): void {
@@ -177,4 +277,5 @@ export function resetAllDataToDefault(): void {
   localStorage.removeItem(KEYS.BK_NOTES);
   localStorage.removeItem(KEYS.SCHOOL_CONFIG);
   localStorage.removeItem(KEYS.CUSTOM_PASSWORDS);
+  notifyDataChanged();
 }

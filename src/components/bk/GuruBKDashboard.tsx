@@ -32,9 +32,17 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
   const [newTindakan, setNewTindakan] = useState('');
 
   useEffect(() => {
-    setAllUsers(getStoredUsers());
-    setAllLogs(getStoredLogs());
-    setBkNotes(getStoredBKNotes());
+    const loadData = () => {
+      setAllUsers(getStoredUsers());
+      setAllLogs(getStoredLogs());
+      setBkNotes(getStoredBKNotes());
+    };
+    loadData();
+
+    window.addEventListener('kaih_data_updated', loadData);
+    return () => {
+      window.removeEventListener('kaih_data_updated', loadData);
+    };
   }, []);
 
   const allStudents = allUsers.filter((u) => u.role === 'siswa');

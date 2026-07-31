@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, Info, Shield, User as UserIcon, BookOpen, Clock, RefreshCw } from 'lucide-react';
+import { LogOut, Info, Shield, User as UserIcon, BookOpen, Clock, RefreshCw, CloudCheck, Wifi } from 'lucide-react';
 import { User } from '../types';
 import { SchoolLogo } from './SchoolLogo';
 
@@ -58,9 +58,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                   7 Kebiasaan
                 </span>
               </span>
-              <span className="text-[10px] font-bold px-2.5 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-400/30 rounded-full hidden sm:inline-flex items-center gap-1">
-                <BookOpen className="w-3 h-3 text-blue-400" />
-                SMPN 10 Balikpapan
+              <span className="text-[10px] font-bold px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded-full hidden sm:inline-flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <Wifi className="w-3 h-3 text-emerald-400" />
+                Data Tersinkron Cloud
               </span>
             </div>
             <p className="text-[11px] text-slate-400 font-medium hidden sm:flex items-center gap-1.5">

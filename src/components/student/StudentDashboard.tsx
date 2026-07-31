@@ -67,61 +67,69 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
   const [jamTidur, setJamTidur] = useState('21:00');
   const [tidurNotes, setTidurNotes] = useState('');
 
-  // Load logs on mount and when date changes
+  // Load logs on mount and when date changes or when data updates remotely
   useEffect(() => {
-    const allLogs = getStoredLogs();
-    const myLogs = allLogs.filter((l) => l.studentId === currentUser.id);
-    setLogs(myLogs);
+    const loadLogs = () => {
+      const allLogs = getStoredLogs();
+      const myLogs = allLogs.filter((l) => l.studentId === currentUser.id);
+      setLogs(myLogs);
 
-    const existing = myLogs.find((l) => l.date === selectedDate);
-    if (existing) {
-      setCurrentEntry(existing);
-      setBangunPagiChecked(existing.bangunPagi?.checked || false);
-      setJamBangun(existing.bangunPagi?.jamBangun || '05:00');
-      setBangunNotes(existing.bangunPagi?.keterangan || '');
+      const existing = myLogs.find((l) => l.date === selectedDate);
+      if (existing) {
+        setCurrentEntry(existing);
+        setBangunPagiChecked(existing.bangunPagi?.checked || false);
+        setJamBangun(existing.bangunPagi?.jamBangun || '05:00');
+        setBangunNotes(existing.bangunPagi?.keterangan || '');
 
-      setBeribadahChecked(existing.beribadah?.checked || false);
-      setSelectedAgama(existing.beribadah?.agama || currentUser.agama || 'Islam');
-      if (existing.beribadah?.sholatIslam) {
-        setSholatIslam(existing.beribadah.sholatIslam);
+        setBeribadahChecked(existing.beribadah?.checked || false);
+        setSelectedAgama(existing.beribadah?.agama || currentUser.agama || 'Islam');
+        if (existing.beribadah?.sholatIslam) {
+          setSholatIslam(existing.beribadah.sholatIslam);
+        }
+        if (existing.beribadah?.nonIslamData) {
+          setNonIslamData(existing.beribadah.nonIslamData);
+        }
+
+        setOlahragaChecked(existing.berolahraga?.checked || false);
+        setJenisOlahraga(existing.berolahraga?.jenisOlahraga || '');
+        setDurasiOlahraga(existing.berolahraga?.durasiMenit || 20);
+        setOlahragaNotes(existing.berolahraga?.keterangan || '');
+
+        setMakanChecked(existing.makanSehat?.checked || false);
+        setMenuMakanan(existing.makanSehat?.menuMakanan || '');
+        setMakanNotes(existing.makanSehat?.keterangan || '');
+
+        setBelajarChecked(existing.gemarBelajar?.checked || false);
+        setMataPelajaran(existing.gemarBelajar?.mataPelajaran || '');
+        setTopikBelajar(existing.gemarBelajar?.topikDipelajari || '');
+        setDurasiBelajar(existing.gemarBelajar?.durasiMenit || 45);
+        setBelajarNotes(existing.gemarBelajar?.keterangan || '');
+
+        setMasyarakatChecked(existing.bermasyarakat?.checked || false);
+        setKegiatanMasyarakat(existing.bermasyarakat?.kegiatan || '');
+        setMasyarakatNotes(existing.bermasyarakat?.keterangan || '');
+
+        setTidurChecked(existing.tidurCepat?.checked || false);
+        setJamTidur(existing.tidurCepat?.jamTidur || '21:00');
+        setTidurNotes(existing.tidurCepat?.keterangan || '');
+      } else {
+        setCurrentEntry(null);
+        // reset defaults
+        setBangunPagiChecked(false);
+        setBeribadahChecked(false);
+        setOlahragaChecked(false);
+        setMakanChecked(false);
+        setBelajarChecked(false);
+        setMasyarakatChecked(false);
+        setTidurChecked(false);
       }
-      if (existing.beribadah?.nonIslamData) {
-        setNonIslamData(existing.beribadah.nonIslamData);
-      }
+    };
 
-      setOlahragaChecked(existing.berolahraga?.checked || false);
-      setJenisOlahraga(existing.berolahraga?.jenisOlahraga || '');
-      setDurasiOlahraga(existing.berolahraga?.durasiMenit || 20);
-      setOlahragaNotes(existing.berolahraga?.keterangan || '');
-
-      setMakanChecked(existing.makanSehat?.checked || false);
-      setMenuMakanan(existing.makanSehat?.menuMakanan || '');
-      setMakanNotes(existing.makanSehat?.keterangan || '');
-
-      setBelajarChecked(existing.gemarBelajar?.checked || false);
-      setMataPelajaran(existing.gemarBelajar?.mataPelajaran || '');
-      setTopikBelajar(existing.gemarBelajar?.topikDipelajari || '');
-      setDurasiBelajar(existing.gemarBelajar?.durasiMenit || 45);
-      setBelajarNotes(existing.gemarBelajar?.keterangan || '');
-
-      setMasyarakatChecked(existing.bermasyarakat?.checked || false);
-      setKegiatanMasyarakat(existing.bermasyarakat?.kegiatan || '');
-      setMasyarakatNotes(existing.bermasyarakat?.keterangan || '');
-
-      setTidurChecked(existing.tidurCepat?.checked || false);
-      setJamTidur(existing.tidurCepat?.jamTidur || '21:00');
-      setTidurNotes(existing.tidurCepat?.keterangan || '');
-    } else {
-      setCurrentEntry(null);
-      // reset defaults
-      setBangunPagiChecked(false);
-      setBeribadahChecked(false);
-      setOlahragaChecked(false);
-      setMakanChecked(false);
-      setBelajarChecked(false);
-      setMasyarakatChecked(false);
-      setTidurChecked(false);
-    }
+    loadLogs();
+    window.addEventListener('kaih_data_updated', loadLogs);
+    return () => {
+      window.removeEventListener('kaih_data_updated', loadLogs);
+    };
   }, [currentUser.id, selectedDate]);
 
   // Handle Save
