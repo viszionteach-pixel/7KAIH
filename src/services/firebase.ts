@@ -5,12 +5,13 @@ import {
   doc,
   setDoc,
   getDocs,
+  deleteDoc,
   onSnapshot,
   getDocFromServer,
   writeBatch
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { User, KAIHEntry, MonthlyReportConfig } from '../types';
+import { User, KAIHEntry, BKCounselingNote, MonthlyReportConfig } from '../types';
 import { INITIAL_ADMINS, INITIAL_GURU_BK, INITIAL_WALI_KELAS, INITIAL_STUDENTS, INITIAL_KAIH_LOGS, INITIAL_SCHOOL_CONFIG } from '../data/initialData';
 
 // Initialize Firebase App & Firestore
@@ -114,6 +115,15 @@ export async function syncSaveSingleUser(user: User) {
   }
 }
 
+export async function syncDeleteUser(userId: string) {
+  try {
+    const docRef = doc(db, USERS_COL, userId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${USERS_COL}/${userId}`);
+  }
+}
+
 async function seedInitialUsers() {
   try {
     const allUsers = [...INITIAL_ADMINS, ...INITIAL_GURU_BK, ...INITIAL_WALI_KELAS, ...INITIAL_STUDENTS];
@@ -170,6 +180,15 @@ export async function syncAddLog(log: KAIHEntry) {
     await setDoc(docRef, cleanForFirestore(log), { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${LOGS_COL}/${log.id}`);
+  }
+}
+
+export async function syncDeleteLog(logId: string) {
+  try {
+    const docRef = doc(db, LOGS_COL, logId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${LOGS_COL}/${logId}`);
   }
 }
 
@@ -245,3 +264,52 @@ export async function syncSaveCustomPassword(username: string, pass: string) {
     handleFirestoreError(error, OperationType.WRITE, `${PASSWORDS_COL}/${username}`);
   }
 }
+
+export async function syncDeletePassword(usernameOrId: string) {
+  try {
+    const docRef = doc(db, PASSWORDS_COL, usernameOrId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${PASSWORDS_COL}/${usernameOrId}`);
+  }
+}
+
+// 5. REALTIME SYNC BK NOTES
+const BK_NOTES_COL = 'bk_notes';
+
+export function subscribeToBKNotes(callback: (notes: BKCounselingNote[]) => void) {
+  const colRef = collection(db, BK_NOTES_COL);
+
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const notesList: BKCounselingNote[] = [];
+      snapshot.forEach((docSnap) => {
+        notesList.push(docSnap.data() as BKCounselingNote);
+      });
+      callback(notesList);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, BK_NOTES_COL);
+    }
+  );
+}
+
+export async function syncSaveBKNote(note: BKCounselingNote) {
+  try {
+    const docRef = doc(db, BK_NOTES_COL, note.id);
+    await setDoc(docRef, cleanForFirestore(note), { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${BK_NOTES_COL}/${note.id}`);
+  }
+}
+
+export async function syncDeleteBKNote(noteId: string) {
+  try {
+    const docRef = doc(db, BK_NOTES_COL, noteId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${BK_NOTES_COL}/${noteId}`);
+  }
+}
+

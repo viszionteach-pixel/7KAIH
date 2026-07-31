@@ -4,13 +4,19 @@ import {
   subscribeToUsers,
   syncSaveUsers,
   syncSaveSingleUser,
+  syncDeleteUser,
   subscribeToLogs,
   syncSaveLogs,
   syncAddLog,
+  syncDeleteLog,
   subscribeToSchoolConfig,
   syncSaveSchoolConfig,
   subscribeToPasswords,
-  syncSaveCustomPassword
+  syncSaveCustomPassword,
+  syncDeletePassword,
+  subscribeToBKNotes,
+  syncSaveBKNote,
+  syncDeleteBKNote
 } from './firebase';
 
 const KEYS = {
@@ -77,6 +83,16 @@ export function initFirebaseRealtimeSync() {
       notifyDataChanged();
     }
   });
+
+  // 5. Subscribe to BK Notes from Firestore
+  subscribeToBKNotes((remoteNotes) => {
+    if (remoteNotes) {
+      isRemoteUpdating = true;
+      localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(remoteNotes));
+      isRemoteUpdating = false;
+      notifyDataChanged();
+    }
+  });
 }
 
 // Local storage helpers & Firebase sync triggers
@@ -98,11 +114,28 @@ export function getStoredUsers(): User[] {
 }
 
 export function saveStoredUsers(users: User[]): void {
+  const previousUsers = getStoredUsers();
+  const currentIds = new Set(previousUsers.map((u) => u.id));
+  const newIds = new Set(users.map((u) => u.id));
+
+  // Identify deleted user IDs and remove them from Firestore
+  const deletedIds = Array.from(currentIds).filter((id) => !newIds.has(id));
+
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
   notifyDataChanged();
+
   if (!isRemoteUpdating) {
     syncSaveUsers(users);
+    deletedIds.forEach((id) => {
+      syncDeleteUser(id);
+      syncDeletePassword(id);
+    });
   }
+}
+
+export function deleteUser(userId: string): void {
+  const users = getStoredUsers().filter((u) => u.id !== userId);
+  saveStoredUsers(users);
 }
 
 export function saveSingleUser(user: User): void {
@@ -210,6 +243,9 @@ export function saveBKNote(note: BKCounselingNote): BKCounselingNote[] {
   notes.push(note);
   localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(notes));
   notifyDataChanged();
+  if (!isRemoteUpdating) {
+    syncSaveBKNote(note);
+  }
   return notes;
 }
 
