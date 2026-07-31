@@ -1,0 +1,333 @@
+import React, { useRef } from 'react';
+import { X, Printer, FileSpreadsheet, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { User, KAIHEntry, MonthlyReportConfig } from '../../types';
+import { SchoolLogo } from '../SchoolLogo';
+
+interface MonthlyReportModalProps {
+  student: User;
+  logs: KAIHEntry[];
+  month: number;
+  year: number;
+  config: MonthlyReportConfig;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const MONTH_NAMES = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
+export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
+  student,
+  logs,
+  month,
+  year,
+  config,
+  isOpen,
+  onClose,
+}) => {
+  const printRef = useRef<HTMLDivElement>(null);
+
+  if (!isOpen) return null;
+
+  const monthName = MONTH_NAMES[month - 1] || 'Juli';
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  // Map logs by date (YYYY-MM-DD)
+  const logMap = new Map<string, KAIHEntry>();
+  logs.forEach((l) => {
+    logMap.set(l.date, l);
+  });
+
+  // Build rows for all days in month
+  const reportDays = Array.from({ length: daysInMonth }, (_, idx) => {
+    const dayNum = idx + 1;
+    const dayStr = dayNum < 10 ? `0${dayNum}` : `${dayNum}`;
+    const monthStr = month < 10 ? `0${month}` : `${month}`;
+    const fullDate = `${year}-${monthStr}-${dayStr}`;
+
+    const entry = logMap.get(fullDate);
+    return {
+      dayNum,
+      fullDate,
+      entry,
+    };
+  });
+
+  // Calculate overall monthly stats
+  const filledDays = reportDays.filter((r) => r.entry).length;
+  const totalCompletedCount = reportDays.reduce((acc, curr) => acc + (curr.entry ? curr.entry.completedCount : 0), 0);
+  const maxPossible = daysInMonth * 7;
+  const overallPercentage = maxPossible > 0 ? Math.round((totalCompletedCount / maxPossible) * 100) : 0;
+
+  const getPredicate = (pct: number) => {
+    if (pct >= 85) return { text: 'Sangat Baik (A)', color: 'text-emerald-700 font-bold' };
+    if (pct >= 70) return { text: 'Baik (B)', color: 'text-blue-700 font-bold' };
+    if (pct >= 55) return { text: 'Cukup (C)', color: 'text-amber-700 font-bold' };
+    return { text: 'Perlu Pembinaan (D)', color: 'text-red-700 font-bold' };
+  };
+
+  const pred = getPredicate(overallPercentage);
+
+  // Print PDF function
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // Export Excel function
+  const handleExportExcel = () => {
+    const excelData = reportDays.map((r) => {
+      const e = r.entry;
+      return {
+        'No / Tgl': `Tgl ${r.dayNum}`,
+        'Tanggal Full': r.fullDate,
+        'Bangun Pagi': e?.bangunPagi?.checked ? `Selesai (${e.bangunPagi.jamBangun || '-'})` : 'Belum',
+        'Beribadah': e?.beribadah?.checked ? 'Selesai' : 'Belum',
+        'Berolahraga': e?.berolahraga?.checked ? `Selesai (${e.berolahraga.jenisOlahraga || '-'})` : 'Belum',
+        'Makan Sehat': e?.makanSehat?.checked ? 'Selesai' : 'Belum',
+        'Gemar Belajar': e?.gemarBelajar?.checked ? `Selesai (${e.gemarBelajar.mataPelajaran || '-'})` : 'Belum',
+        'Bermasyarakat': e?.bermasyarakat?.checked ? 'Selesai' : 'Belum',
+        'Tidur Cepat': e?.tidurCepat?.checked ? `Selesai (${e.tidurCepat.jamTidur || '-'})` : 'Belum',
+        'Capaian (0-100%)': e ? `${e.scorePercentage}%` : '0%',
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    
+    // Add title rows
+    XLSX.utils.sheet_add_aoa(worksheet, [
+      ['LAPORAN BULANAN 7 KAIH (KEBIASAAN ANAK INDONESIA HEBAT)'],
+      ['SMP NEGERI 10 BALIKPAPAN'],
+      [`Nama Siswa: ${student.name}`, `Kelas: ${student.assignedClass}`, `Bulan: ${monthName} ${year}`],
+      [`Wali Kelas: ${config.namaWaliKelas}`, `Kepala Sekolah: ${config.namaKepalaSekolah}`],
+      [],
+    ], { origin: 'A1' });
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Laporan KAIH');
+    XLSX.writeFile(workbook, `Laporan_KAIH_${student.name.replace(/\s+/g, '_')}_${student.assignedClass}_${monthName}_${year}.xlsx`);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+      {/* Container */}
+      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200 relative flex flex-col">
+        {/* Action Header bar (hidden on print) */}
+        <div className="sticky top-0 z-20 bg-slate-900 text-white p-4 flex items-center justify-between shadow-md print:hidden">
+          <div className="flex items-center gap-3">
+            <SchoolLogo size="sm" />
+            <div>
+              <h3 className="font-bold text-sm">Laporan Bulanan 7 KAIH Siswa</h3>
+              <p className="text-xs text-slate-300">
+                Format Potrait - {student.name} ({student.assignedClass}) - {monthName} {year}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+              title="Unduh format Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Export Excel</span>
+            </button>
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+              title="Cetak/Simpan PDF Potrait"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Cetak / PDF</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Printable Portrait Sheet Area */}
+        <div ref={printRef} className="p-8 sm:p-10 bg-white text-slate-900 font-sans print:p-6 print:w-full">
+          {/* Print CSS Override */}
+          <style>{`
+            @media print {
+              @page {
+                size: portrait;
+                margin: 12mm;
+              }
+              body {
+                background: white !important;
+                color: black !important;
+              }
+              .print\\:hidden {
+                display: none !important;
+              }
+            }
+          `}</style>
+
+          {/* Official Kop Surat Header */}
+          <div className="border-b-4 border-slate-900 pb-3 mb-6 flex items-center justify-between text-center sm:text-left">
+            <div className="flex items-center gap-4">
+              <SchoolLogo size="lg" className="shrink-0" />
+              <div>
+                <h4 className="text-xs font-extrabold uppercase tracking-widest text-slate-600">
+                  PEMERINTAH KOTA BALIKPAPAN
+                </h4>
+                <h3 className="text-sm font-black uppercase text-slate-800">
+                  DINAS PENDIDIKAN DAN KEBUDAYAAN
+                </h3>
+                <h2 className="text-lg font-black uppercase text-blue-900 tracking-tight">
+                  SMP NEGERI 10 BALIKPAPAN
+                </h2>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  Jl. Syarifuddin Yoes, Sepinggan, Kec. Balikpapan Selatan, Kota Balikpapan, Kalimantan Timur
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Title */}
+          <div className="text-center mb-6">
+            <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wide">
+              LAPORAN PEMBIASAAN 7 KEBIASAAN ANAK INDONESIA HEBAT (KAIH)
+            </h2>
+            <p className="text-xs font-semibold text-slate-600 uppercase">
+              PERIODE BULAN: {monthName} {year}
+            </p>
+          </div>
+
+          {/* Student Info Box */}
+          <div className="grid grid-cols-2 gap-4 text-xs mb-6 border border-slate-300 rounded-lg p-3.5 bg-slate-50">
+            <div>
+              <p className="mb-1"><strong className="text-slate-700">Nama Lengkap Siswa:</strong> {student.name}</p>
+              <p className="mb-1"><strong className="text-slate-700">Kelas:</strong> {student.assignedClass}</p>
+              <p><strong className="text-slate-700">Agama:</strong> {student.agama || 'Islam'}</p>
+            </div>
+            <div>
+              <p className="mb-1"><strong className="text-slate-700">Jumlah Hari Terisi:</strong> {filledDays} / {daysInMonth} Hari</p>
+              <p className="mb-1"><strong className="text-slate-700">Rata-rata Kepatuhan:</strong> <span className={pred.color}>{overallPercentage}%</span></p>
+              <p><strong className="text-slate-700">Predikat Karakter:</strong> <span className={pred.color}>{pred.text}</span></p>
+            </div>
+          </div>
+
+          {/* 30 Days Portrait Table */}
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-[10px] border-collapse border border-slate-400">
+              <thead>
+                <tr className="bg-slate-800 text-white font-bold uppercase text-center">
+                  <th className="border border-slate-400 p-1.5 w-10">Tgl</th>
+                  <th className="border border-slate-400 p-1.5">Bangun Pagi</th>
+                  <th className="border border-slate-400 p-1.5">Beribadah</th>
+                  <th className="border border-slate-400 p-1.5">Berolahraga</th>
+                  <th className="border border-slate-400 p-1.5">Makan Sehat</th>
+                  <th className="border border-slate-400 p-1.5">Gemar Belajar</th>
+                  <th className="border border-slate-400 p-1.5">Bermasyarakat</th>
+                  <th className="border border-slate-400 p-1.5">Tidur Cepat</th>
+                  <th className="border border-slate-400 p-1.5 w-14">Skor %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reportDays.map((r) => {
+                  const e = r.entry;
+                  return (
+                    <tr key={r.dayNum} className={`text-center ${r.dayNum % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
+                      <td className="border border-slate-300 p-1 font-bold text-slate-700">{r.dayNum}</td>
+                      <td className="border border-slate-300 p-1">
+                        {e?.bangunPagi?.checked ? (
+                          <span className="text-emerald-700 font-bold">✓ ({e.bangunPagi.jamBangun || 'Subuh'})</span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="border border-slate-300 p-1">
+                        {e?.beribadah?.checked ? (
+                          <span className="text-emerald-700 font-bold">✓</span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="border border-slate-300 p-1">
+                        {e?.berolahraga?.checked ? (
+                          <span className="text-emerald-700 font-bold">✓</span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="border border-slate-300 p-1">
+                        {e?.makanSehat?.checked ? (
+                          <span className="text-emerald-700 font-bold">✓</span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="border border-slate-300 p-1">
+                        {e?.gemarBelajar?.checked ? (
+                          <span className="text-emerald-700 font-bold">✓</span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="border border-slate-300 p-1">
+                        {e?.bermasyarakat?.checked ? (
+                          <span className="text-emerald-700 font-bold">✓</span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="border border-slate-300 p-1">
+                        {e?.tidurCepat?.checked ? (
+                          <span className="text-emerald-700 font-bold">✓ ({e.tidurCepat.jamTidur || '21:00'})</span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="border border-slate-300 p-1 font-bold">
+                        {e ? (
+                          <span className={e.scorePercentage >= 80 ? 'text-emerald-700' : 'text-slate-700'}>
+                            {e.scorePercentage}%
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">0%</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Signatures Section (TTD Wali Kelas & TTD Kepala Sekolah) */}
+          <div className="mt-8 pt-4 border-t border-slate-300 flex items-start justify-between text-xs leading-relaxed">
+            {/* TTD Wali Kelas */}
+            <div className="text-center w-56">
+              <p className="text-slate-600 mb-1">Mengetahui,</p>
+              <p className="font-bold text-slate-800">Wali Kelas {student.assignedClass}</p>
+              <div className="h-20 flex items-center justify-center my-1">
+                <span className="text-[10px] text-slate-400 italic">[ Tanda Tangan & Stempel ]</span>
+              </div>
+              <p className="font-bold text-slate-900 underline">{config.namaWaliKelas}</p>
+              <p className="text-[10px] text-slate-500">NIP. {config.nipWaliKelas || '19750814 200212 2 003'}</p>
+            </div>
+
+            {/* TTD Kepala Sekolah */}
+            <div className="text-center w-64">
+              <p className="text-slate-600 mb-1">Balikpapan, {daysInMonth} {monthName} {year}</p>
+              <p className="font-bold text-slate-800">Kepala SMP Negeri 10 Balikpapan</p>
+              <div className="h-20 flex items-center justify-center my-1">
+                <span className="text-[10px] text-slate-400 italic">[ Tanda Tangan & Stempel Resmi ]</span>
+              </div>
+              <p className="font-bold text-slate-900 underline">{config.namaKepalaSekolah}</p>
+              <p className="text-[10px] text-slate-500">NIP. {config.nipKepalaSekolah || '19680512 199403 1 005'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

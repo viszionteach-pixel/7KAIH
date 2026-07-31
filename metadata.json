@@ -1,0 +1,6 @@
+{
+  "name": "KAIH SMPN 10 Balikpapan",
+  "description": "Aplikasi Kebiasaan Anak Indonesia Hebat (KAIH) SMP Negeri 10 Balikpapan - Monitoring Kebiasaan Harian Siswa, Wali Kelas, Guru BK, dan Admin",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
