@@ -8,7 +8,7 @@ import { User, Role, ClassName, MonthlyReportConfig } from '../../types';
 import { ALL_CLASSES } from '../../data/initialData';
 import {
   getStoredUsers, saveStoredUsers, getStoredSchoolConfig, saveStoredSchoolConfig,
-  saveCustomPassword, resetAllDataToDefault, getStoredLogs
+  saveCustomPassword, getCustomPasswords, resetAllDataToDefault, getStoredLogs
 } from '../../services/storage';
 import { StudentImportModal } from './StudentImportModal';
 
@@ -31,6 +31,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   const [newUserClass, setNewUserClass] = useState<ClassName>('7A');
   const [newUserAgama, setNewUserAgama] = useState<'Islam' | 'Kristen' | 'Katolik' | 'Hindu' | 'Buddha' | 'Khonghucu'>('Islam');
   const [newUserPassword, setNewUserPassword] = useState('');
+
+  // Edit User State
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [editRole, setEditRole] = useState<Role>('siswa');
+  const [editClass, setEditClass] = useState<ClassName>('7A');
+  const [editAgama, setEditAgama] = useState<'Islam' | 'Kristen' | 'Katolik' | 'Hindu' | 'Buddha' | 'Khonghucu'>('Islam');
+  const [editAdminTitle, setEditAdminTitle] = useState('');
+  const [editPassword, setEditPassword] = useState('');
 
   // Password Reset Modal
   const [resetPassUser, setResetPassUser] = useState<User | null>(null);
@@ -125,8 +135,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     setIsImportModalOpen(true);
   };
 
+  // Helper for Edit User
+  const handleOpenEditUser = (userToEdit: User) => {
+    setEditingUser(userToEdit);
+    setEditName(userToEdit.name);
+    setEditUsername(userToEdit.username);
+    setEditRole(userToEdit.role);
+    setEditClass(userToEdit.assignedClass || '7A');
+    setEditAgama(userToEdit.agama || 'Islam');
+    setEditAdminTitle(userToEdit.adminTitle || '');
+    
+    // Check if custom password exists
+    const customPasswords = getCustomPasswords();
+    setEditPassword(customPasswords[userToEdit.id] || '');
+  };
+
+  const handleUpdateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser || !editName.trim()) return;
+
+    const updatedUser: User = {
+      ...editingUser,
+      name: editName.trim(),
+      username: editUsername.trim() || editName.trim(),
+      role: editRole,
+      assignedClass: editRole === 'siswa' || editRole === 'wali_kelas' ? editClass : undefined,
+      agama: editRole === 'siswa' ? editAgama : editingUser.agama,
+      adminTitle: editRole === 'admin' ? editAdminTitle.trim() : undefined,
+    };
+
+    const updatedUsers = users.map((u) => (u.id === editingUser.id ? updatedUser : u));
+    saveStoredUsers(updatedUsers);
+    setUsers(updatedUsers);
+
+    if (editPassword.trim()) {
+      saveCustomPassword(editingUser.id, editPassword.trim());
+    }
+
+    setEditingUser(null);
+    alert(`Data akun "${updatedUser.name}" berhasil diperbarui!`);
+  };
+
   const handleDeleteUser = (userToDelete: User) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus siswa "${userToDelete.name}" dari Kelas ${userToDelete.assignedClass}?`)) {
+    const roleLabel =
+      userToDelete.role === 'admin'
+        ? 'Admin'
+        : userToDelete.role === 'guru_bk'
+        ? 'Guru BK'
+        : userToDelete.role === 'wali_kelas'
+        ? `Wali Kelas ${userToDelete.assignedClass || ''}`
+        : `Siswa Kelas ${userToDelete.assignedClass || ''}`;
+
+    if (confirm(`Apakah Anda yakin ingin MENGHAPUS akun ${roleLabel} "${userToDelete.name}"?`)) {
       const updated = users.filter((u) => u.id !== userToDelete.id);
       saveStoredUsers(updated);
       setUsers(updated);
@@ -290,6 +350,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
             </div>
 
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Cari nama, username, kelas..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-rose-500 w-48 sm:w-60"
+                />
+              </div>
+
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
@@ -324,34 +395,61 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
                   <th className="py-3.5 px-6">Nama Lengkap</th>
-                  <th className="py-3.5 px-6">Username</th>
-                  <th className="py-3.5 px-6">Peran</th>
-                  <th className="py-3.5 px-6">Kelas</th>
-                  <th className="py-3.5 px-6 text-right">Kelola Password</th>
+                  <th className="py-3.5 px-6">Username / Login ID</th>
+                  <th className="py-3.5 px-6">Peran / Hak Akses</th>
+                  <th className="py-3.5 px-6">Kelas / Jabatan</th>
+                  <th className="py-3.5 px-6 text-right">Tindakan Kelola</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50">
-                    <td className="py-4 px-6 font-bold text-slate-900">{u.name}</td>
-                    <td className="py-4 px-6 text-slate-600">{u.username}</td>
+                  <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-4 px-6 font-bold text-slate-900">
+                      {u.name}
+                      {u.adminTitle && (
+                        <span className="block text-[10px] text-slate-400 font-normal">{u.adminTitle}</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-6 font-mono text-slate-600">{u.username}</td>
                     <td className="py-4 px-6 font-bold">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-extrabold ${
-                        u.role === 'admin' ? 'bg-rose-100 text-rose-800' :
-                        u.role === 'guru_bk' ? 'bg-purple-100 text-purple-800' :
-                        u.role === 'wali_kelas' ? 'bg-amber-100 text-amber-800' :
-                        'bg-blue-100 text-blue-800'
+                        u.role === 'admin' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                        u.role === 'guru_bk' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                        u.role === 'wali_kelas' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                        'bg-blue-100 text-blue-800 border border-blue-200'
                       }`}>
-                        {u.role}
+                        {u.role === 'admin' ? 'ADMIN KONSOL' :
+                         u.role === 'guru_bk' ? 'GURU BK' :
+                         u.role === 'wali_kelas' ? 'WALI KELAS' :
+                         'SISWA'}
                       </span>
                     </td>
-                    <td className="py-4 px-6 font-bold text-slate-700">{u.assignedClass || '-'}</td>
-                    <td className="py-4 px-6 text-right">
+                    <td className="py-4 px-6 font-bold text-slate-700">
+                      {u.assignedClass ? `Kelas ${u.assignedClass}` : u.role === 'guru_bk' ? 'Bimbingan Konseling' : u.role === 'admin' ? 'Super Admin' : '-'}
+                    </td>
+                    <td className="py-4 px-6 text-right space-x-1.5">
+                      <button
+                        onClick={() => handleOpenEditUser(u)}
+                        className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
+                        title="Edit Data Pengguna"
+                      >
+                        <Edit className="w-3.5 h-3.5 text-blue-600" /> Edit
+                      </button>
+
                       <button
                         onClick={() => setResetPassUser(u)}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-xs inline-flex items-center gap-1"
+                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
+                        title="Reset Password Akun"
                       >
-                        <Key className="w-3.5 h-3.5" /> Reset Password
+                        <Key className="w-3.5 h-3.5" /> Password
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteUser(u)}
+                        className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
+                        title="Hapus Akun Pengguna"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Hapus
                       </button>
                     </td>
                   </tr>
@@ -921,6 +1019,161 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
           </div>
         </div>
       )}
+
+      {/* Edit User Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 font-bold flex items-center justify-center">
+                  <Edit className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Edit Akun Pengguna
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Ubah detail nama, username, peran, atau password.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setEditingUser(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateUser} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Nama Lengkap:
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Nama Pengguna"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Username / ID Login:
+                </label>
+                <input
+                  type="text"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  placeholder="Username / NISN / ID"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-mono text-slate-800 focus:ring-2 focus:ring-amber-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Peran / Hak Akses:
+                </label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as Role)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="siswa">Siswa</option>
+                  <option value="wali_kelas">Wali Kelas</option>
+                  <option value="guru_bk">Guru BK</option>
+                  <option value="admin">Admin Konsol</option>
+                </select>
+              </div>
+
+              {(editRole === 'siswa' || editRole === 'wali_kelas') && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {editRole === 'wali_kelas' ? 'Tugas Wali Kelas Pada:' : 'Pilih Kelas:'}
+                  </label>
+                  <select
+                    value={editClass}
+                    onChange={(e) => setEditClass(e.target.value as ClassName)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                  >
+                    {ALL_CLASSES.map((c) => (
+                      <option key={c} value={c}>
+                        Kelas {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {editRole === 'siswa' && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Agama Siswa:</label>
+                  <select
+                    value={editAgama}
+                    onChange={(e) => setEditAgama(e.target.value as any)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="Islam">Islam</option>
+                    <option value="Kristen">Kristen</option>
+                    <option value="Katolik">Katolik</option>
+                    <option value="Hindu">Hindu</option>
+                    <option value="Buddha">Buddha</option>
+                    <option value="Khonghucu">Khonghucu</option>
+                  </select>
+                </div>
+              )}
+
+              {editRole === 'admin' && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Gelar / Jabatan Admin (Opsional):</label>
+                  <input
+                    type="text"
+                    value={editAdminTitle}
+                    onChange={(e) => setEditAdminTitle(e.target.value)}
+                    placeholder="Contoh: Kepala Sekolah / Penanggung Jawab KAIH"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-medium text-slate-800 focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Ubah Password (Opsional):
+                </label>
+                <input
+                  type="text"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Ketik password baru jika ingin mengubah..."
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-medium text-slate-900 focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-extrabold rounded-xl shadow-xs transition-all"
+                >
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {/* Class Detail Modal (Kartu Detail Kelas) */}
       {selectedClassDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -1044,6 +1297,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right space-x-1">
+                            <button
+                              onClick={() => handleOpenEditUser(st)}
+                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-[10px] inline-flex items-center gap-1 transition-all"
+                              title="Edit Data Siswa"
+                            >
+                              <Edit className="w-3 h-3" /> Edit
+                            </button>
                             <button
                               onClick={() => setResetPassUser(st)}
                               className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[10px] inline-flex items-center gap-1 transition-all"
