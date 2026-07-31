@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  # Force Netlify to build on all updates and not skip changes
+  ignore = "false"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--legacy-peer-deps"
+  CI = "false"
+
+# SPA Routing Fallback for React Router / Single Page Application
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -14,6 +14,8 @@ import {
 } from '../../services/storage';
 import { StudentImportModal } from './StudentImportModal';
 
+import { compressImage } from '../../utils/imageCompressor';
+
 interface AdminDashboardProps {
   currentUser: User;
 }
@@ -255,41 +257,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     alert(`Password untuk ${resetPassUser.name} berhasil diubah! Klik "Simpan Perubahan" untuk menyinkronkan.`);
   };
 
-  // Image upload helpers
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Image upload helpers (Auto-compressed to ~30-50KB for fast Vercel & Firestore sync)
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 4 * 1024 * 1024) {
-      alert('Ukuran file logo terlalu besar. Maksimal 4MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Ukuran file logo terlalu besar. Maksimal 10MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        setLogoUrl(event.target.result as string);
+    try {
+      const compressedDataUrl = await compressImage(file, 400, 0.85);
+      if (compressedDataUrl) {
+        setLogoUrl(compressedDataUrl);
         setHasUnsavedChanges(true);
         setLastActionInfo('Upload logo baru sekolah');
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Gagal memproses file logo:', err);
+      alert('Gagal memproses file logo. Pastikan format file adalah gambar valid (PNG/JPG/WebP/SVG).');
+    }
   };
 
-  const handleStempelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleStempelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 4 * 1024 * 1024) {
-      alert('Ukuran file stempel terlalu besar. Maksimal 4MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Ukuran file stempel terlalu besar. Maksimal 10MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        setStempelUrl(event.target.result as string);
+    try {
+      const compressedDataUrl = await compressImage(file, 400, 0.85);
+      if (compressedDataUrl) {
+        setStempelUrl(compressedDataUrl);
         setHasUnsavedChanges(true);
         setLastActionInfo('Upload stempel baru sekolah');
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Gagal memproses file stempel:', err);
+      alert('Gagal memproses file stempel. Pastikan format file adalah gambar valid.');
+    }
   };
 
   // Handle Save School Config Form Submit
