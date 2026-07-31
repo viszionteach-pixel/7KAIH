@@ -68,6 +68,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   const [namaWali, setNamaWali] = useState(schoolConfig.namaWaliKelas);
   const [nipWali, setNipWali] = useState(schoolConfig.nipWaliKelas || '');
 
+  // Save status & unsaved changes tracking
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const [lastActionInfo, setLastActionInfo] = useState<string | null>(null);
+  const [saveSuccessNotification, setSaveSuccessNotification] = useState<string | null>(null);
+
+  // Unified Save All Function
+  const executeSaveAll = () => {
+    // 1. Save users
+    saveStoredUsers(users);
+
+    // 2. Save school config
+    const updatedConfig: MonthlyReportConfig = {
+      ...schoolConfig,
+      namaSekolah: namaSekolah.trim() || 'SMP NEGERI 10 BALIKPAPAN',
+      alamatSekolah: alamatSekolah.trim(),
+      logoUrl: logoUrl.trim() || '/logo_smpn10.jpg',
+      stempelUrl: stempelUrl.trim(),
+      namaKepalaSekolah: namaKepala.trim(),
+      nipKepalaSekolah: nipKepala.trim(),
+      namaWaliKelas: namaWali.trim(),
+      nipWaliKelas: nipWali.trim(),
+    };
+    saveStoredSchoolConfig(updatedConfig);
+    setSchoolConfig(updatedConfig);
+
+    setHasUnsavedChanges(false);
+    const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const msg = `Semua perubahan data berhasil disimpan dan disinkronkan ke Cloud pada jam ${timeStr}!`;
+    setSaveSuccessNotification(msg);
+    setLastActionInfo(null);
+
+    alert('✓ Berhasil menyimpan seluruh perubahan data (akun & konfigurasi) ke Cloud Firestore dan memori lokal!');
+
+    setTimeout(() => {
+      setSaveSuccessNotification(null);
+    }, 6000);
+  };
+
   useEffect(() => {
     const loadData = () => {
       setUsers(getStoredUsers());
@@ -123,6 +161,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     setIsAddingUser(false);
     setNewUserName('');
     setNewUserPassword('');
+
+    setHasUnsavedChanges(true);
+    setLastActionInfo(`Penambahan akun baru "${newUser.name}" (${newUser.role})`);
+    alert(`Akun "${newUser.name}" berhasil ditambahkan! Klik "Simpan Perubahan" untuk konfirmasi.`);
   };
 
   // Helper for Class Card Actions
@@ -175,7 +217,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     }
 
     setEditingUser(null);
-    alert(`Data akun "${updatedUser.name}" berhasil diperbarui!`);
+    setHasUnsavedChanges(true);
+    setLastActionInfo(`Edit data akun "${updatedUser.name}"`);
+    alert(`Data akun "${updatedUser.name}" berhasil diperbarui! Klik "Simpan Perubahan" untuk konfirmasi.`);
   };
 
   const handleDeleteUser = (userToDelete: User) => {
@@ -192,6 +236,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
       const updated = users.filter((u) => u.id !== userToDelete.id);
       saveStoredUsers(updated);
       setUsers(updated);
+      setHasUnsavedChanges(true);
+      setLastActionInfo(`Penghapusan akun "${userToDelete.name}"`);
+      alert(`Akun "${userToDelete.name}" telah dihapus dari daftar local state. Klik "Simpan Perubahan" untuk menyinkronkan ke Cloud.`);
     }
   };
 
@@ -203,7 +250,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     saveCustomPassword(resetPassUser.id, newPasswordVal.trim());
     setResetPassUser(null);
     setNewPasswordVal('');
-    alert(`Password untuk ${resetPassUser.name} berhasil diubah!`);
+    setHasUnsavedChanges(true);
+    setLastActionInfo(`Reset password akun "${resetPassUser.name}"`);
+    alert(`Password untuk ${resetPassUser.name} berhasil diubah! Klik "Simpan Perubahan" untuk menyinkronkan.`);
   };
 
   // Image upload helpers
@@ -218,6 +267,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     reader.onload = (event) => {
       if (event.target?.result) {
         setLogoUrl(event.target.result as string);
+        setHasUnsavedChanges(true);
+        setLastActionInfo('Upload logo baru sekolah');
       }
     };
     reader.readAsDataURL(file);
@@ -234,28 +285,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     reader.onload = (event) => {
       if (event.target?.result) {
         setStempelUrl(event.target.result as string);
+        setHasUnsavedChanges(true);
+        setLastActionInfo('Upload stempel baru sekolah');
       }
     };
     reader.readAsDataURL(file);
   };
 
-  // Handle Save School Config
+  // Handle Save School Config Form Submit
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
-    const updated: MonthlyReportConfig = {
-      ...schoolConfig,
-      namaSekolah: namaSekolah.trim() || 'SMP NEGERI 10 BALIKPAPAN',
-      alamatSekolah: alamatSekolah.trim(),
-      logoUrl: logoUrl.trim() || '/logo_smpn10.jpg',
-      stempelUrl: stempelUrl.trim(),
-      namaKepalaSekolah: namaKepala.trim(),
-      nipKepalaSekolah: nipKepala.trim(),
-      namaWaliKelas: namaWali.trim(),
-      nipWaliKelas: nipWali.trim(),
-    };
-    saveStoredSchoolConfig(updated);
-    setSchoolConfig(updated);
-    alert('Identitas Sekolah, Logo, Stempel & TTD Berhasil Disimpan!');
+    executeSaveAll();
   };
 
   // Backup & Restore Handlers
@@ -318,18 +358,95 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
           </p>
         </div>
 
-        {/* 3 Admin Accounts Badge */}
-        <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-700 text-xs space-y-2 shrink-0">
-          <p className="font-bold text-amber-400">3 Konsol Admin Terdaftar:</p>
-          <div className="space-y-1">
-            {adminAccounts.map((adm) => (
-              <div key={adm.id} className="flex items-center gap-2 text-[11px] text-slate-300">
-                <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                <span>{adm.name}</span>
-              </div>
-            ))}
+        {/* 3 Admin Accounts Badge & Direct Quick Save Button */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+          <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-700 text-xs space-y-1.5 w-full sm:w-auto">
+            <p className="font-bold text-amber-400 text-[11px]">3 Konsol Admin Terdaftar:</p>
+            <div className="space-y-1">
+              {adminAccounts.map((adm) => (
+                <div key={adm.id} className="flex items-center gap-2 text-[11px] text-slate-300">
+                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                  <span>{adm.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={executeSaveAll}
+            className={`w-full sm:w-auto px-5 py-4 font-black text-xs rounded-2xl shadow-xl transition-all flex flex-col items-center justify-center gap-1 border ${
+              hasUnsavedChanges
+                ? 'bg-amber-400 hover:bg-amber-300 text-slate-900 border-amber-300 ring-4 ring-amber-400/30 animate-pulse'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400'
+            }`}
+            title="Klik untuk menyimpan dan menyinkronkan seluruh perubahan ke Cloud"
+          >
+            <div className="flex items-center gap-1.5 text-sm">
+              <Save className="w-4 h-4" />
+              <span>{hasUnsavedChanges ? 'SIMPAN PERUBAHAN!' : 'SIMPAN DATA'}</span>
+            </div>
+            <span className="text-[10px] font-semibold opacity-90">
+              {hasUnsavedChanges ? '● Ada Perubahan Terbaru' : '✓ Data Tersimpan'}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* ACTIVE SAVE BANNER - Highlighted when admin adds, edits, or deletes data */}
+      <div className={`p-4 rounded-2xl border transition-all duration-300 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 ${
+        hasUnsavedChanges
+          ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-white border-amber-300 ring-2 ring-amber-400/40'
+          : 'bg-slate-900 text-white border-slate-800'
+      }`}>
+        <div className="flex items-center gap-3.5">
+          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black shrink-0 shadow-md ${
+            hasUnsavedChanges ? 'bg-white text-rose-600' : 'bg-emerald-500 text-white'
+          }`}>
+            {hasUnsavedChanges ? <Save className="w-6 h-6 animate-bounce" /> : <CloudCheck className="w-6 h-6" />}
+          </div>
+
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                hasUnsavedChanges
+                  ? 'bg-white text-rose-800 font-extrabold shadow-xs'
+                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+              }`}>
+                {hasUnsavedChanges ? '● PERUBAHAN BARU TERDETEKSI' : '✓ STATUS SINKRONISASI CLOUD'}
+              </span>
+              {lastActionInfo && (
+                <span className="text-[11px] font-bold text-amber-100 hidden md:inline">
+                  • {lastActionInfo}
+                </span>
+              )}
+            </div>
+
+            <h4 className="text-sm font-black tracking-tight">
+              {hasUnsavedChanges
+                ? 'Tombol Simpan Aktif: Klik tombol di samping untuk menyimpan seluruh penambahan, edit, atau hapus data!'
+                : 'Semua perubahan data (penambahan, edit, & hapus) tersimpan rapi di Cloud & lokal.'}
+            </h4>
+            <p className="text-[11px] opacity-90 max-w-2xl">
+              {hasUnsavedChanges
+                ? lastActionInfo
+                  ? `Perubahan Terakhir: ${lastActionInfo}. Pastikan mengeklik tombol "Simpan Perubahan Sekarang" agar tersimpan permanen.`
+                  : 'Data telah berubah. Silakan klik tombol Simpan di sebelah kanan.'
+                : saveSuccessNotification || 'Data disinkronkan secara realtime dengan database Cloud Firestore & penyimpanan browser.'}
+            </p>
           </div>
         </div>
+
+        <button
+          onClick={executeSaveAll}
+          className={`px-6 py-3.5 font-black text-xs rounded-xl shadow-xl transition-all flex items-center gap-2 shrink-0 ${
+            hasUnsavedChanges
+              ? 'bg-white hover:bg-slate-100 text-slate-900 border-2 border-white hover:scale-105 active:scale-95 cursor-pointer'
+              : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400'
+          }`}
+        >
+          <Save className="w-4 h-4" />
+          <span>{hasUnsavedChanges ? 'SIMPAN PERUBAHAN SEKARANG' : 'Konfirmasi Simpan Data'}</span>
+        </button>
       </div>
 
       {/* Tabs */}
@@ -669,7 +786,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                   <input
                     type="text"
                     value={namaSekolah}
-                    onChange={(e) => setNamaSekolah(e.target.value)}
+                    onChange={(e) => {
+                      setNamaSekolah(e.target.value);
+                      setHasUnsavedChanges(true);
+                      setLastActionInfo('Perubahan nama sekolah');
+                    }}
                     placeholder="Contoh: SMP NEGERI 10 BALIKPAPAN"
                     className="w-full p-3 bg-white border border-slate-300 rounded-xl font-extrabold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
                     required
@@ -684,7 +805,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                   <textarea
                     rows={2}
                     value={alamatSekolah}
-                    onChange={(e) => setAlamatSekolah(e.target.value)}
+                    onChange={(e) => {
+                      setAlamatSekolah(e.target.value);
+                      setHasUnsavedChanges(true);
+                      setLastActionInfo('Perubahan alamat sekolah');
+                    }}
                     placeholder="Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara..."
                     className="w-full p-3 bg-white border border-slate-300 rounded-xl text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
                     required
@@ -1473,7 +1598,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
         defaultClass={selectedClassForImport}
         onSuccessImport={(count) => {
           setUsers(getStoredUsers());
-          alert(`Berhasil mengimpor ${count} siswa baru ke dalam sistem!`);
+          setHasUnsavedChanges(true);
+          setLastActionInfo(`Impor ${count} siswa baru`);
+          alert(`Berhasil mengimpor ${count} siswa baru ke dalam sistem! Klik "Simpan Perubahan" untuk konfirmasi.`);
         }}
       />
     </div>
