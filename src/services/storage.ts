@@ -315,3 +315,124 @@ export function resetAllDataToDefault(): void {
   localStorage.removeItem(KEYS.CUSTOM_PASSWORDS);
   notifyDataChanged();
 }
+
+// FULL SYSTEM BACKUP & RESTORE
+export function exportFullBackupJSON(): void {
+  const schoolConfig = getStoredSchoolConfig();
+  const users = getStoredUsers();
+  const customPasswords = getCustomPasswords();
+  const kaihLogs = getStoredLogs();
+  const bkNotes = getStoredBKNotes();
+
+  const backupData = {
+    version: '1.0',
+    app: 'KAIH SMP Negeri 10 Balikpapan',
+    exportedAt: new Date().toISOString(),
+    schoolConfig,
+    users,
+    customPasswords,
+    kaihLogs,
+    bkNotes,
+  };
+
+  const jsonStr = JSON.stringify(backupData, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const dateStr = new Date().toISOString().split('T')[0];
+  const filename = `KAIH_SMPN10_FULL_BACKUP_${dateStr}.json`;
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export interface RestoreResult {
+  success: boolean;
+  message: string;
+  stats?: {
+    usersCount: number;
+    logsCount: number;
+    bkNotesCount: number;
+    hasSchoolConfig: boolean;
+  };
+}
+
+export function importFullBackupJSON(jsonText: string): RestoreResult {
+  try {
+    const data = JSON.parse(jsonText);
+
+    if (!data || typeof data !== 'object') {
+      return { success: false, message: 'Format file JSON tidak valid.' };
+    }
+
+    let usersRestored = 0;
+    let logsRestored = 0;
+    let bkNotesRestored = 0;
+    let hasSchoolConfig = false;
+
+    // 1. Restore School Config (Includes Logo, Stempel, Kop Surat, Identitas Sekolah)
+    if (data.schoolConfig && typeof data.schoolConfig === 'object') {
+      saveStoredSchoolConfig(data.schoolConfig);
+      hasSchoolConfig = true;
+    }
+
+    // 2. Restore Users
+    if (Array.isArray(data.users)) {
+      saveStoredUsers(data.users);
+      usersRestored = data.users.length;
+    }
+
+    // 3. Restore Custom Passwords
+    if (data.customPasswords && typeof data.customPasswords === 'object') {
+      localStorage.setItem(KEYS.CUSTOM_PASSWORDS, JSON.stringify(data.customPasswords));
+      if (!isRemoteUpdating) {
+        Object.entries(data.customPasswords).forEach(([uid, pass]) => {
+          if (typeof pass === 'string') {
+            syncSaveCustomPassword(uid, pass);
+          }
+        });
+      }
+    }
+
+    // 4. Restore KAIH Logs
+    if (Array.isArray(data.kaihLogs)) {
+      saveStoredLogs(data.kaihLogs);
+      logsRestored = data.kaihLogs.length;
+    }
+
+    // 5. Restore BK Notes
+    if (Array.isArray(data.bkNotes)) {
+      localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(data.bkNotes));
+      bkNotesRestored = data.bkNotes.length;
+      if (!isRemoteUpdating) {
+        data.bkNotes.forEach((note: BKCounselingNote) => {
+          if (note && note.id) {
+            syncSaveBKNote(note);
+          }
+        });
+      }
+    }
+
+    notifyDataChanged();
+
+    return {
+      success: true,
+      message: 'Restorasi data berhasil disinkronkan ke sistem dan Cloud Firestore!',
+      stats: {
+        usersCount: usersRestored,
+        logsCount: logsRestored,
+        bkNotesCount: bkNotesRestored,
+        hasSchoolConfig
+      }
+    };
+  } catch (error: any) {
+    console.error('Error restoring backup:', error);
+    return { success: false, message: `Gagal membaca file backup: ${error?.message || 'Format JSON rusak.'}` };
+  }
+}
+

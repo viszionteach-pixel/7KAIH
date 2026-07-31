@@ -85,10 +85,14 @@ export default function App() {
             <button onClick={() => setIsAboutOpen(true)} className="hover:text-amber-400 transition-colors">
               Tentang 7 KAIH
             </button>
-            <span>•</span>
-            <button onClick={() => setIsRoleSwitcherOpen(true)} className="hover:text-blue-400 transition-colors">
-              Ganti Peran Akses
-            </button>
+            {currentUser && (
+              <>
+                <span>•</span>
+                <button onClick={() => setIsRoleSwitcherOpen(true)} className="hover:text-blue-400 transition-colors">
+                  Ganti Peran Akses
+                </button>
+              </>
+            )}
           </div>
         </div>
       </footer>

@@ -5,9 +5,10 @@ interface SchoolLogoProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   customLogoUrl?: string;
+  onClick?: () => void;
 }
 
-export const SchoolLogo: React.FC<SchoolLogoProps> = ({ className = '', size = 'md', customLogoUrl }) => {
+export const SchoolLogo: React.FC<SchoolLogoProps> = ({ className = '', size = 'md', customLogoUrl, onClick }) => {
   const sizeClasses = {
     sm: 'w-8 h-8',
     md: 'w-12 h-12',
@@ -20,7 +21,10 @@ export const SchoolLogo: React.FC<SchoolLogoProps> = ({ className = '', size = '
   const activeLogo = customLogoUrl || storedConfig.logoUrl || '/logo_smpn10.jpg';
 
   return (
-    <div className={`relative inline-flex items-center justify-center select-none ${sizeClasses[size]} ${className}`}>
+    <div
+      onClick={onClick}
+      className={`relative inline-flex items-center justify-center select-none ${sizeClasses[size]} ${className} ${onClick ? 'cursor-pointer active:scale-95' : ''}`}
+    >
       <img
         src={activeLogo}
         alt="Logo Sekolah"

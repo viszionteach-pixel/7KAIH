@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import {
   Shield, Users, UserPlus, Settings, Database, RefreshCw, Key,
   CheckCircle2, Trash2, Edit, Save, AlertTriangle, FileSpreadsheet, Lock, Upload,
-  Building2, Image as ImageIcon, RotateCcw, Award, FileText, Search, Plus, Eye, Filter, X
+  Building2, Image as ImageIcon, RotateCcw, Award, FileText, Search, Plus, Eye, Filter, X,
+  Download, CloudCheck, HardDrive
 } from 'lucide-react';
 import { User, Role, ClassName, MonthlyReportConfig } from '../../types';
 import { ALL_CLASSES } from '../../data/initialData';
 import {
   getStoredUsers, saveStoredUsers, getStoredSchoolConfig, saveStoredSchoolConfig,
-  saveCustomPassword, getCustomPasswords, resetAllDataToDefault, getStoredLogs
+  saveCustomPassword, getCustomPasswords, resetAllDataToDefault, getStoredLogs,
+  exportFullBackupJSON, importFullBackupJSON
 } from '../../services/storage';
 import { StudentImportModal } from './StudentImportModal';
 
@@ -256,6 +258,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     alert('Identitas Sekolah, Logo, Stempel & TTD Berhasil Disimpan!');
   };
 
+  // Backup & Restore Handlers
+  const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
+
+  const handleExportBackup = () => {
+    exportFullBackupJSON();
+  };
+
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text) {
+        if (confirm('APAKAH ANDA YAKIN? Mengimpor file backup akan memperbarui seluruh data sekolah (logo, identitas), akun pengguna, password, log presensi, dan catatan BK.')) {
+          const result = importFullBackupJSON(text);
+          if (result.success) {
+            setUsers(getStoredUsers());
+            setSchoolConfig(getStoredSchoolConfig());
+            setRestoreStatus(
+              `Berhasil memulihkan ${result.stats?.usersCount || 0} akun pengguna, ${result.stats?.logsCount || 0} log presensi, ${result.stats?.bkNotesCount || 0} catatan BK, serta identitas & logo sekolah!`
+            );
+            alert(result.message);
+          } else {
+            alert(`Gagal restorasi: ${result.message}`);
+          }
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   // Handle Reset System Data
   const handleResetSystem = () => {
     if (confirm('APAKAH ANDA YAKIN? Tindakan ini akan mengembalikan data pengguna dan presensi ke setelan awal pabrik!')) {
@@ -272,10 +308,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
       <div className="bg-gradient-to-r from-rose-900 via-slate-900 to-blue-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 border border-rose-800">
         <div className="space-y-2 text-center md:text-left">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-rose-500/20 text-rose-300 border border-rose-400/30 rounded-full text-xs font-bold uppercase tracking-wider">
-            <Shield className="w-3.5 h-3.5" /> Konsol Admin KAIH (3 Akses Penuh)
+            <Shield className="w-3.5 h-3.5" /> Konsol Kepala Sekolah & Administrator KAIH
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Konsol Administrator Utama
+            Konsol Akses Kepala Sekolah / Admin Utama
           </h1>
           <p className="text-xs sm:text-sm text-rose-200 max-w-xl">
             Pengguna Saat Ini: <strong>{currentUser.name}</strong> ({currentUser.adminTitle || 'Admin Console'}). Akses pengelolaan akun 32 kelas, reset password, dan pengaturan cetak laporan.
@@ -854,31 +890,111 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
         </div>
       )}
 
-      {/* TAB 4: DATA MASTER & SYSTEM */}
+      {/* TAB 4: BACKUP, RESTORE & DATA MASTER */}
       {activeTab === 'data' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm max-w-2xl space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm max-w-4xl space-y-8">
           <div>
-            <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-              <Database className="w-5 h-5 text-rose-600" />
-              Pemulihan & Master Data Sistem
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-extrabold mb-2">
+              <CloudCheck className="w-4 h-4 text-emerald-600" />
+              Sinkronisasi Cloud Firestore Otomatis Active
+            </div>
+            <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <Database className="w-6 h-6 text-rose-600" />
+              Pusat Backup & Pemulihan Data Menyeluruh
             </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Reset atau kembalikan data awal demo jika diperlukan saat pengujian.
+            <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+              Semua data sistem (pengguna, identitas & logo sekolah, password kustom, log pembiasaan KAIH, dan catatan BK) tersimpan di Cloud Database Firestore sehingga <strong>aman dari update webapp, redeploy server, maupun pembersihan memori browser</strong>.
             </p>
           </div>
 
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-3">
-            <h4 className="font-bold flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4 text-amber-600" /> Reset ke Data Awal Pabrik
+          {restoreStatus && (
+            <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs font-bold text-emerald-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>{restoreStatus}</span>
+              </div>
+              <button
+                onClick={() => setRestoreStatus(null)}
+                className="text-emerald-700 hover:text-emerald-900 font-extrabold text-xs"
+              >
+                Tutup
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* EXPORT BACKUP CARD */}
+            <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                  <Download className="w-5 h-5" />
+                </div>
+                <h4 className="text-base font-extrabold text-slate-900">
+                  1. Unduh / Export Backup Data (JSON)
+                </h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Simpan cadangan offline seluruh data sekolah dalam 1 file JSON lengkap:
+                </p>
+                <ul className="text-[11px] text-slate-500 space-y-1 list-disc pl-4 font-medium">
+                  <li>Identitas Sekolah, Kop Surat, Logo (Base64/URL), & Stempel TTD</li>
+                  <li>Semua Akun Pengguna ({users.length} Siswa, Wali Kelas, BK, Admin)</li>
+                  <li>Semua Password Kustom yang pernah diset</li>
+                  <li>Semua Log Presensi/Pembiasaan KAIH ({getStoredLogs().length} Log)</li>
+                  <li>Semua Catatan Bimbingan Konseling (BK)</li>
+                </ul>
+              </div>
+
+              <button
+                onClick={handleExportBackup}
+                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+              >
+                <Download className="w-4 h-4" /> Download Backup Lengkap (.JSON)
+              </button>
+            </div>
+
+            {/* IMPORT / RESTORE BACKUP CARD */}
+            <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <h4 className="text-base font-extrabold text-slate-900">
+                  2. Restorasi / Import Backup Data
+                </h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Unggah file cadangan JSON yang pernah diunduh sebelumnya untuk mengembalikan seluruh identitas sekolah, logo, akun, dan riwayat presensi secara otomatis.
+                </p>
+                <p className="text-[11px] text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                  ✓ Data restored langsung disinkronkan ke Cloud Firestore.
+                </p>
+              </div>
+
+              <label className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all">
+                <Upload className="w-4 h-4" /> Unggah & Pulihkan File Backup (.JSON)
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleImportBackup}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* RESET SYSTEM DATA DANGER ZONE */}
+          <div className="p-5 bg-rose-50/70 border border-rose-200 rounded-2xl text-xs text-rose-900 space-y-3">
+            <h4 className="font-extrabold flex items-center gap-2 text-rose-800">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              Zona Khusus: Reset Data ke Setelan Pabrik
             </h4>
-            <p className="leading-relaxed">
-              Tindakan ini akan mengosongkan log tambahan dan mengembalikan daftar 32 kelas, akun Wali Kelas, Guru BK, 3 Admin, serta sampel siswa.
+            <p className="leading-relaxed text-slate-600">
+              Gunakan opsi ini hanya jika Anda ingin mengembalikan sistem ke sampel awal demo sekolah. Sebelum melakukan reset, disarankan mengunduh backup data terlebih dahulu.
             </p>
             <button
               onClick={handleResetSystem}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition-colors inline-flex items-center gap-1.5"
+              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition-all inline-flex items-center gap-2 shadow-xs"
             >
-              <RefreshCw className="w-4 h-4" /> Reset Data Pabrik
+              <RefreshCw className="w-4 h-4" /> Reset Semua Data ke Setelan Pabrik
             </button>
           </div>
         </div>

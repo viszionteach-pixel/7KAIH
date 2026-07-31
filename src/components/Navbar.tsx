@@ -120,13 +120,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Quick Switch Role button */}
-          <button
-            onClick={onSwitchRole}
-            className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors flex items-center justify-center"
-            title="Ganti Peran / User Demo"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
+          {currentUser && (
+            <button
+              onClick={onSwitchRole}
+              className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors flex items-center justify-center"
+              title="Ganti Peran / User Demo"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          )}
 
           {/* Logout */}
           {currentUser && (
