@@ -152,43 +152,55 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
         </div>
 
         {/* Printable Portrait Sheet Area */}
-        <div ref={printRef} className="p-8 sm:p-10 bg-white text-slate-900 font-sans print:p-6 print:w-full">
+        <div ref={printRef} className="p-8 sm:p-10 bg-white text-slate-900 font-sans print:p-0 print:m-0 print:w-full">
           {/* Print CSS Override */}
           <style>{`
             @media print {
               @page {
-                size: portrait;
-                margin: 12mm;
+                size: A4 portrait;
+                margin: 6mm 8mm;
               }
-              body {
+              html, body {
                 background: white !important;
                 color: black !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                margin: 0 !important;
+                padding: 0 !important;
               }
               .print\\:hidden {
                 display: none !important;
+              }
+              tr {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+              .signature-block {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
               }
             }
           `}</style>
 
           {/* Official Kop Surat Header */}
-          <div className="border-b-4 border-slate-900 pb-3 mb-6 flex items-center justify-between gap-2">
+          <div className="border-b-4 border-slate-900 pb-2 mb-3 print:pb-1.5 print:mb-2 print:border-b-2 flex items-center justify-between gap-2">
             {/* Left Logo */}
             <div className="w-16 sm:w-20 shrink-0 flex justify-start">
-              <SchoolLogo customLogoUrl={config.logoUrl} size="lg" className="shrink-0 w-16 h-16 sm:w-20 sm:h-20" />
+              <SchoolLogo customLogoUrl={config.logoUrl} size="lg" className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 print:w-12 print:h-12" />
             </div>
 
             {/* Center Text */}
             <div className="text-center flex-1 px-2">
-              <h4 className="text-xs font-extrabold uppercase tracking-widest text-slate-700 leading-tight">
+              <h4 className="text-xs print:text-[9px] font-extrabold uppercase tracking-widest text-slate-700 leading-tight">
                 PEMERINTAH KOTA BALIKPAPAN
               </h4>
-              <h3 className="text-sm font-black uppercase text-slate-900 leading-tight">
+              <h3 className="text-sm print:text-[11px] font-black uppercase text-slate-900 leading-tight">
                 DINAS PENDIDIKAN DAN KEBUDAYAAN
               </h3>
-              <h2 className="text-base sm:text-lg font-black uppercase text-blue-900 tracking-tight leading-tight">
+              <h2 className="text-base sm:text-lg print:text-[13px] font-black uppercase text-blue-900 tracking-tight leading-tight">
                 {config.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN'}
               </h2>
-              <p className="text-[10px] text-slate-600 mt-0.5 leading-tight">
+              <p className="text-[10px] print:text-[8px] text-slate-600 mt-0.5 leading-tight">
                 {config.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur'}
               </p>
             </div>
@@ -198,43 +210,43 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
           </div>
 
           {/* Title */}
-          <div className="text-center mb-6">
-            <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wide">
+          <div className="text-center mb-3 print:mb-2">
+            <h2 className="text-sm sm:text-base print:text-[12px] font-extrabold text-slate-900 uppercase tracking-wide leading-tight">
               LAPORAN PEMBIASAAN 7 KEBIASAAN ANAK INDONESIA HEBAT (KAIH)
             </h2>
-            <p className="text-xs font-semibold text-slate-600 uppercase">
+            <p className="text-xs print:text-[9.5px] font-semibold text-slate-600 uppercase mt-0.5">
               PERIODE BULAN: {monthName} {year}
             </p>
           </div>
 
           {/* Student Info Box */}
-          <div className="grid grid-cols-2 gap-4 text-xs mb-6 border border-slate-300 rounded-lg p-3.5 bg-slate-50">
+          <div className="grid grid-cols-2 gap-2 text-xs print:text-[9px] mb-3 print:mb-2 border border-slate-300 rounded-lg p-2.5 print:p-1.5 bg-slate-50">
             <div>
-              <p className="mb-1"><strong className="text-slate-700">Nama Lengkap Siswa:</strong> {student.name}</p>
-              <p className="mb-1"><strong className="text-slate-700">Kelas:</strong> {student.assignedClass}</p>
+              <p className="mb-0.5"><strong className="text-slate-700">Nama Lengkap Siswa:</strong> {student.name}</p>
+              <p className="mb-0.5"><strong className="text-slate-700">Kelas:</strong> {student.assignedClass}</p>
               <p><strong className="text-slate-700">Agama:</strong> {student.agama || 'Islam'}</p>
             </div>
             <div>
-              <p className="mb-1"><strong className="text-slate-700">Jumlah Hari Terisi:</strong> {filledDays} / {daysInMonth} Hari</p>
-              <p className="mb-1"><strong className="text-slate-700">Rata-rata Kepatuhan:</strong> <span className={pred.color}>{overallPercentage}%</span></p>
+              <p className="mb-0.5"><strong className="text-slate-700">Jumlah Hari Terisi:</strong> {filledDays} / {daysInMonth} Hari</p>
+              <p className="mb-0.5"><strong className="text-slate-700">Rata-rata Kepatuhan:</strong> <span className={pred.color}>{overallPercentage}%</span></p>
               <p><strong className="text-slate-700">Predikat Karakter:</strong> <span className={pred.color}>{pred.text}</span></p>
             </div>
           </div>
 
           {/* 30 Days Portrait Table */}
-          <div className="overflow-x-auto mb-6">
-            <table className="w-full text-[10px] border-collapse border border-slate-400">
+          <div className="overflow-x-auto mb-3 print:mb-2">
+            <table className="w-full text-[10px] print:text-[7.5px] border-collapse border border-slate-400">
               <thead>
                 <tr className="bg-slate-800 text-white font-bold uppercase text-center">
-                  <th className="border border-slate-400 p-1.5 w-10">Tgl</th>
-                  <th className="border border-slate-400 p-1.5">Bangun Pagi</th>
-                  <th className="border border-slate-400 p-1.5">Beribadah</th>
-                  <th className="border border-slate-400 p-1.5">Berolahraga</th>
-                  <th className="border border-slate-400 p-1.5">Makan Sehat</th>
-                  <th className="border border-slate-400 p-1.5">Gemar Belajar</th>
-                  <th className="border border-slate-400 p-1.5">Bermasyarakat</th>
-                  <th className="border border-slate-400 p-1.5">Tidur Cepat</th>
-                  <th className="border border-slate-400 p-1.5 w-14">Skor %</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5 w-8">Tgl</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Bangun Pagi</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Beribadah</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Berolahraga</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Makan Sehat</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Gemar Belajar</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Bermasyarakat</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Tidur Cepat</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5 w-12">Skor %</th>
                 </tr>
               </thead>
               <tbody>
@@ -242,57 +254,57 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
                   const e = r.entry;
                   return (
                     <tr key={r.dayNum} className={`text-center ${r.dayNum % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                      <td className="border border-slate-300 p-1 font-bold text-slate-700">{r.dayNum}</td>
-                      <td className="border border-slate-300 p-1">
+                      <td className="border border-slate-300 p-0.5 print:py-0.5 font-bold text-slate-700">{r.dayNum}</td>
+                      <td className="border border-slate-300 p-0.5 print:py-0.5">
                         {e?.bangunPagi?.checked ? (
                           <span className="text-emerald-700 font-bold">✓ ({e.bangunPagi.jamBangun || 'Subuh'})</span>
                         ) : (
                           <span className="text-slate-300">-</span>
                         )}
                       </td>
-                      <td className="border border-slate-300 p-1">
+                      <td className="border border-slate-300 p-0.5 print:py-0.5">
                         {e?.beribadah?.checked ? (
                           <span className="text-emerald-700 font-bold">✓</span>
                         ) : (
                           <span className="text-slate-300">-</span>
                         )}
                       </td>
-                      <td className="border border-slate-300 p-1">
+                      <td className="border border-slate-300 p-0.5 print:py-0.5">
                         {e?.berolahraga?.checked ? (
                           <span className="text-emerald-700 font-bold">✓</span>
                         ) : (
                           <span className="text-slate-300">-</span>
                         )}
                       </td>
-                      <td className="border border-slate-300 p-1">
+                      <td className="border border-slate-300 p-0.5 print:py-0.5">
                         {e?.makanSehat?.checked ? (
                           <span className="text-emerald-700 font-bold">✓</span>
                         ) : (
                           <span className="text-slate-300">-</span>
                         )}
                       </td>
-                      <td className="border border-slate-300 p-1">
+                      <td className="border border-slate-300 p-0.5 print:py-0.5">
                         {e?.gemarBelajar?.checked ? (
                           <span className="text-emerald-700 font-bold">✓</span>
                         ) : (
                           <span className="text-slate-300">-</span>
                         )}
                       </td>
-                      <td className="border border-slate-300 p-1">
+                      <td className="border border-slate-300 p-0.5 print:py-0.5">
                         {e?.bermasyarakat?.checked ? (
                           <span className="text-emerald-700 font-bold">✓</span>
                         ) : (
                           <span className="text-slate-300">-</span>
                         )}
                       </td>
-                      <td className="border border-slate-300 p-1">
+                      <td className="border border-slate-300 p-0.5 print:py-0.5">
                         {e?.tidurCepat?.checked ? (
                           <span className="text-emerald-700 font-bold">✓ ({e.tidurCepat.jamTidur || '21:00'})</span>
                         ) : (
                           <span className="text-slate-300">-</span>
                         )}
                       </td>
-                      <td className="border border-slate-300 p-1 font-bold">
+                      <td className="border border-slate-300 p-0.5 print:py-0.5 font-bold">
                         {e ? (
                           <span className={e.scorePercentage >= 80 ? 'text-emerald-700' : 'text-slate-700'}>
                             {e.scorePercentage}%
@@ -309,35 +321,35 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
           </div>
 
           {/* Signatures Section (TTD Wali Kelas & TTD Kepala Sekolah) */}
-          <div className="mt-8 pt-4 border-t border-slate-300 flex items-start justify-between text-xs leading-relaxed">
+          <div className="signature-block pt-3 print:pt-2 border-t border-slate-300 flex items-start justify-between text-xs print:text-[9.5px] leading-tight">
             {/* TTD Wali Kelas */}
-            <div className="text-center w-56">
-              <p className="text-slate-600 mb-1">Mengetahui,</p>
+            <div className="text-center w-52 print:w-48">
+              <p className="text-slate-600 mb-0.5">Mengetahui,</p>
               <p className="font-bold text-slate-800">Wali Kelas {student.assignedClass}</p>
-              <div className="h-20 flex items-center justify-center my-1">
-                <span className="text-[10px] text-slate-400 italic">[ Tanda Tangan ]</span>
+              <div className="h-14 print:h-10 flex items-center justify-center my-1">
+                <span className="text-[10px] print:text-[8px] text-slate-400 italic">[ Tanda Tangan ]</span>
               </div>
               <p className="font-bold text-slate-900 underline">{config.namaWaliKelas}</p>
-              <p className="text-[10px] text-slate-500">NIP. {config.nipWaliKelas || '19750814 200212 2 003'}</p>
+              <p className="text-[10px] print:text-[8px] text-slate-500">NIP. {config.nipWaliKelas || '19750814 200212 2 003'}</p>
             </div>
 
             {/* TTD Kepala Sekolah & Stempel */}
-            <div className="text-center w-64 relative">
-              <p className="text-slate-600 mb-1">Balikpapan, {daysInMonth} {monthName} {year}</p>
+            <div className="text-center w-60 print:w-56 relative">
+              <p className="text-slate-600 mb-0.5">Balikpapan, {daysInMonth} {monthName} {year}</p>
               <p className="font-bold text-slate-800">Kepala {config.namaSekolah || 'SMP Negeri 10 Balikpapan'}</p>
-              <div className="h-20 flex items-center justify-center my-1 relative">
+              <div className="h-14 print:h-10 flex items-center justify-center my-1 relative">
                 {config.stempelUrl ? (
                   <img
                     src={config.stempelUrl}
                     alt="Stempel Resmi Sekolah"
-                    className="max-h-16 max-w-full object-contain drop-shadow-sm opacity-90 transition-all"
+                    className="max-h-12 print:max-h-9 max-w-full object-contain drop-shadow-sm opacity-90 transition-all"
                   />
                 ) : (
-                  <span className="text-[10px] text-slate-400 italic">[ Tanda Tangan & Stempel Resmi ]</span>
+                  <span className="text-[10px] print:text-[8px] text-slate-400 italic">[ Tanda Tangan & Stempel Resmi ]</span>
                 )}
               </div>
               <p className="font-bold text-slate-900 underline">{config.namaKepalaSekolah}</p>
-              <p className="text-[10px] text-slate-500">NIP. {config.nipKepalaSekolah || '19680512 199403 1 005'}</p>
+              <p className="text-[10px] print:text-[8px] text-slate-500">NIP. {config.nipKepalaSekolah || '19680512 199403 1 005'}</p>
             </div>
           </div>
         </div>
