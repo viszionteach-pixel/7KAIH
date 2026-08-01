@@ -377,7 +377,11 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
           logs={allLogs.filter((l) => l.studentId === selectedStudentForReport.id)}
           month={Number(selectedDate.split('-')[1]) || 7}
           year={Number(selectedDate.split('-')[0]) || 2026}
-          config={schoolConfig}
+          config={{
+            ...schoolConfig,
+            namaWaliKelas: allUsers.find((u) => u.role === 'wali_kelas' && u.assignedClass === selectedStudentForReport.assignedClass)?.name || schoolConfig.namaWaliKelas,
+            nipWaliKelas: allUsers.find((u) => u.role === 'wali_kelas' && u.assignedClass === selectedStudentForReport.assignedClass)?.nip || schoolConfig.nipWaliKelas,
+          }}
           isOpen={Boolean(selectedStudentForReport)}
           onClose={() => setSelectedStudentForReport(null)}
         />

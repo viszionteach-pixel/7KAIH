@@ -4,7 +4,7 @@ import {
   CheckCircle2, Clock, Calendar, Save, AlertCircle, FileText, Check, Award
 } from 'lucide-react';
 import { User, KAIHEntry, Agama, SholatWaktuStatus, NonIslamIbadah } from '../../types';
-import { getStoredLogs, addOrUpdateLog, getStoredSchoolConfig } from '../../services/storage';
+import { getStoredLogs, addOrUpdateLog, getStoredSchoolConfig, getStoredUsers } from '../../services/storage';
 import { DailyPieChart } from '../charts/DailyPieChart';
 import { DailyBarChart } from '../charts/DailyBarChart';
 import { MonthlyLineChart } from '../charts/MonthlyLineChart';
@@ -694,7 +694,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
           logs={logs}
           month={currentMonthNum}
           year={currentYearNum}
-          config={schoolConfig}
+          config={{
+            ...schoolConfig,
+            namaWaliKelas: getStoredUsers().find((u) => u.role === 'wali_kelas' && u.assignedClass === currentUser.assignedClass)?.name || schoolConfig.namaWaliKelas,
+            nipWaliKelas: getStoredUsers().find((u) => u.role === 'wali_kelas' && u.assignedClass === currentUser.assignedClass)?.nip || schoolConfig.nipWaliKelas,
+          }}
           isOpen={showReportModal}
           onClose={() => setShowReportModal(false)}
         />

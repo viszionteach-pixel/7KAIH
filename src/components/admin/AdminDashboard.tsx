@@ -37,6 +37,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   const [newUserRole, setNewUserRole] = useState<Role>('siswa');
   const [newUserClass, setNewUserClass] = useState<ClassName>('7A');
   const [newUserAgama, setNewUserAgama] = useState<'Islam' | 'Kristen' | 'Katolik' | 'Hindu' | 'Buddha' | 'Khonghucu'>('Islam');
+  const [newUserNip, setNewUserNip] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
 
   // Edit User State
@@ -47,6 +48,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   const [editClass, setEditClass] = useState<ClassName>('7A');
   const [editAgama, setEditAgama] = useState<'Islam' | 'Kristen' | 'Katolik' | 'Hindu' | 'Buddha' | 'Khonghucu'>('Islam');
   const [editAdminTitle, setEditAdminTitle] = useState('');
+  const [editNip, setEditNip] = useState('');
   const [editPassword, setEditPassword] = useState('');
 
   // Password Reset Modal
@@ -160,6 +162,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
       role: newUserRole,
       assignedClass: newUserRole === 'siswa' || newUserRole === 'wali_kelas' ? newUserClass : undefined,
       agama: newUserAgama,
+      nip: newUserNip.trim() || undefined,
     };
 
     const updated = [...users, newUser];
@@ -172,6 +175,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
 
     setIsAddingUser(false);
     setNewUserName('');
+    setNewUserNip('');
     setNewUserPassword('');
 
     setHasUnsavedChanges(true);
@@ -200,6 +204,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     setEditClass(userToEdit.assignedClass || '7A');
     setEditAgama(userToEdit.agama || 'Islam');
     setEditAdminTitle(userToEdit.adminTitle || '');
+    setEditNip(userToEdit.nip || '');
     
     // Check if custom password exists
     const customPasswords = getCustomPasswords();
@@ -218,6 +223,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
       assignedClass: editRole === 'siswa' || editRole === 'wali_kelas' ? editClass : undefined,
       agama: editRole === 'siswa' ? editAgama : editingUser.agama,
       adminTitle: editRole === 'admin' ? editAdminTitle.trim() : undefined,
+      nip: editNip.trim() || undefined,
     };
 
     const updatedUsers = users.map((u) => (u.id === editingUser.id ? updatedUser : u));
@@ -732,6 +738,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                       </td>
                       <td className="py-4 px-6 font-bold text-slate-900">
                         {u.name}
+                        {u.nip && (
+                          <span className="block text-[10px] text-slate-500 font-mono font-normal">NIP. {u.nip}</span>
+                        )}
                         {u.adminTitle && (
                           <span className="block text-[10px] text-slate-400 font-normal">{u.adminTitle}</span>
                         )}
@@ -895,8 +904,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                       Kelas {cls}
                     </h4>
 
-                    <p className="text-[11px] text-slate-500 font-medium mt-1 truncate" title={wk ? wk.name : 'Wali kelas belum diset'}>
-                      <strong>WK:</strong> {wk ? wk.name : <span className="text-amber-600 italic">Belum diset</span>}
+                    <p className="text-[11px] text-slate-500 font-medium mt-1 truncate" title={wk ? `${wk.name}${wk.nip ? ` (NIP. ${wk.nip})` : ''}` : 'Wali kelas belum diset'}>
+                      <strong>WK:</strong> {wk ? (
+                        <span>
+                          {wk.name} {wk.nip && <span className="text-[10px] text-slate-500 font-normal block">NIP. {wk.nip}</span>}
+                        </span>
+                      ) : <span className="text-amber-600 italic">Belum diset</span>}
                     </p>
                   </div>
 
@@ -1387,6 +1400,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                 </div>
               )}
 
+              {newUserRole !== 'siswa' && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">NIP (Nomor Induk Pegawai - Opsional):</label>
+                  <input
+                    type="text"
+                    value={newUserNip}
+                    onChange={(e) => setNewUserNip(e.target.value)}
+                    placeholder="Contoh: 19750814 200212 2 003"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Custom Password (Opsional):</label>
                 <input
@@ -1576,6 +1602,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                     onChange={(e) => setEditAdminTitle(e.target.value)}
                     placeholder="Contoh: Kepala Sekolah / Penanggung Jawab KAIH"
                     className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-medium text-slate-800 focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              )}
+
+              {editRole !== 'siswa' && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">NIP (Nomor Induk Pegawai - Opsional):</label>
+                  <input
+                    type="text"
+                    value={editNip}
+                    onChange={(e) => setEditNip(e.target.value)}
+                    placeholder="Contoh: 19750814 200212 2 003"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-medium text-slate-900 focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
               )}

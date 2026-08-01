@@ -78,6 +78,7 @@ export const INITIAL_WALI_KELAS: User[] = ALL_CLASSES.map((cls, idx) => {
     name: teacherNames[idx % teacherNames.length],
     role: 'wali_kelas' as const,
     assignedClass: cls,
+    nip: `197508${(idx + 10).toString().padStart(2, '0')} 200212 ${idx % 2 === 0 ? '2' : '1'} 00${(idx % 9) + 1}`,
   };
 });
 

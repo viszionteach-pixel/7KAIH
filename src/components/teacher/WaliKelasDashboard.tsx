@@ -105,7 +105,7 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
             Monitoring Karakter Kelas {assignedClass}
           </h1>
           <p className="text-xs sm:text-sm text-amber-100 max-w-xl">
-            Wali Kelas: <strong>{currentUser.name}</strong> • Memantau {classStudents.length} siswa terdaftar di Kelas {assignedClass}.
+            Wali Kelas: <strong>{currentUser.name}</strong> {currentUser.nip ? `(NIP. ${currentUser.nip})` : ''} • Memantau {classStudents.length} siswa terdaftar di Kelas {assignedClass}.
           </p>
         </div>
 
@@ -308,6 +308,7 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
           config={{
             ...schoolConfig,
             namaWaliKelas: currentUser.name,
+            nipWaliKelas: currentUser.nip || schoolConfig.nipWaliKelas,
           }}
           isOpen={Boolean(selectedStudentForReport)}
           onClose={() => setSelectedStudentForReport(null)}

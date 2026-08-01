@@ -167,6 +167,13 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
     window.print();
   };
 
+  const currentWaliKelas = selectedClass !== 'ALL'
+    ? allUsers.find((u) => u.role === 'wali_kelas' && u.assignedClass === selectedClass)
+    : (currentUser.role === 'wali_kelas' ? currentUser : null);
+
+  const displayWaliKelasName = currentWaliKelas?.name || schoolConfig.namaWaliKelas || currentUser.name;
+  const displayWaliKelasNip = currentWaliKelas?.nip || schoolConfig.nipWaliKelas || '19750814 200212 2 003';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/75 backdrop-blur-sm overflow-y-auto print:static print:block print:p-0 print:m-0 print:bg-white print:overflow-visible print:w-full print:h-auto print:inset-auto print:z-auto">
       <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200 relative flex flex-col print:static print:block print:p-0 print:m-0 print:bg-white print:overflow-visible print:max-h-none print:max-w-none print:w-full print:shadow-none print:border-none print:rounded-none">
@@ -504,9 +511,9 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
                 <span className="text-[10px] print:text-[8px] text-slate-400 italic">[ Tanda Tangan ]</span>
               </div>
               <p className="font-bold text-slate-900 underline">
-                {schoolConfig.namaWaliKelas || currentUser.name}
+                {displayWaliKelasName}
               </p>
-              <p className="text-[10px] print:text-[8px] text-slate-500">NIP. {schoolConfig.nipWaliKelas || '19750814 200212 2 003'}</p>
+              <p className="text-[10px] print:text-[8px] text-slate-500">NIP. {displayWaliKelasNip}</p>
             </div>
 
             <div className="text-center w-60 print:w-56">
