@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from './types';
-import { getCurrentUser, setCurrentUser, getStoredUsers, initFirebaseRealtimeSync } from './services/storage';
+import { getCurrentUser, setCurrentUser, getStoredUsers, initRealtimeSync } from './services/storage';
 import { Navbar } from './components/Navbar';
 import { LoginModal } from './components/LoginModal';
 import { AboutKAIH } from './components/AboutKAIH';
@@ -17,7 +17,7 @@ export default function App() {
   const [allUsers, setAllUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    initFirebaseRealtimeSync();
+    initRealtimeSync();
     setUser(getCurrentUser());
     setAllUsers(getStoredUsers());
 

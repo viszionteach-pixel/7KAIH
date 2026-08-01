@@ -17,7 +17,7 @@ import {
   subscribeToBKNotes,
   syncSaveBKNote,
   syncDeleteBKNote
-} from './firebase';
+} from './supabaseSync';
 
 const KEYS = {
   USERS: 'kaih_smpn10_users_v1',
@@ -38,9 +38,9 @@ export function notifyDataChanged() {
 // Global flag to prevent infinite loops during remote sync
 let isRemoteUpdating = false;
 
-// Initialize Firebase Realtime 2-Way Synchronization across all devices
+// Initialize Supabase Realtime 2-Way Synchronization across all devices
 let isInitialized = false;
-export function initFirebaseRealtimeSync() {
+export function initRealtimeSync() {
   if (isInitialized) return;
   isInitialized = true;
 
