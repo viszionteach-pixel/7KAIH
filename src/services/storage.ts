@@ -18,6 +18,18 @@ import {
   syncSaveBKNote,
   syncDeleteBKNote
 } from './firebase';
+import {
+  isSupabaseConfigured,
+  supabaseSaveUsers,
+  supabaseDeleteUser,
+  supabaseFetchUsers,
+  supabaseSaveLogs,
+  supabaseFetchLogs,
+  supabaseSaveSchoolConfig,
+  supabaseFetchSchoolConfig,
+  supabaseSaveBKNotes,
+  supabaseFetchBKNotes
+} from './supabase';
 
 const KEYS = {
   USERS: 'kaih_smpn10_users_v1',
@@ -38,11 +50,33 @@ export function notifyDataChanged() {
 // Global flag to prevent infinite loops during remote sync
 let isRemoteUpdating = false;
 
-// Initialize Firebase Realtime 2-Way Synchronization across all devices
+// Initialize Firebase & Supabase Synchronization across all devices
 let isInitialized = false;
-export function initFirebaseRealtimeSync() {
+export async function initFirebaseRealtimeSync() {
   if (isInitialized) return;
   isInitialized = true;
+
+  // 0. If Supabase is configured, pull initial remote state from Supabase
+  if (isSupabaseConfigured) {
+    try {
+      const [spUsers, spLogs, spConfig, spBKNotes] = await Promise.all([
+        supabaseFetchUsers(),
+        supabaseFetchLogs(),
+        supabaseFetchSchoolConfig(),
+        supabaseFetchBKNotes(),
+      ]);
+
+      isRemoteUpdating = true;
+      if (spUsers && spUsers.length > 0) localStorage.setItem(KEYS.USERS, JSON.stringify(spUsers));
+      if (spLogs && spLogs.length > 0) localStorage.setItem(KEYS.LOGS, JSON.stringify(spLogs));
+      if (spConfig) localStorage.setItem(KEYS.SCHOOL_CONFIG, JSON.stringify(spConfig));
+      if (spBKNotes && spBKNotes.length > 0) localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(spBKNotes));
+      isRemoteUpdating = false;
+      notifyDataChanged();
+    } catch (err) {
+      console.warn('Initial Supabase fetch failed, falling back to local/Firebase storage:', err);
+    }
+  }
 
   // 1. Subscribe to Users from Firestore
   subscribeToUsers((remoteUsers) => {
@@ -95,6 +129,7 @@ export function initFirebaseRealtimeSync() {
   });
 }
 
+
 // Local storage helpers & Firebase sync triggers
 export function getStoredUsers(): User[] {
   try {
@@ -102,8 +137,6 @@ export function getStoredUsers(): User[] {
     if (!data) {
       const allInitial = [...INITIAL_ADMINS, ...INITIAL_GURU_BK, ...INITIAL_WALI_KELAS, ...INITIAL_STUDENTS];
       localStorage.setItem(KEYS.USERS, JSON.stringify(allInitial));
-      // Sync initial users to Firestore
-      syncSaveUsers(allInitial);
       return allInitial;
     }
     return JSON.parse(data);
@@ -121,14 +154,24 @@ export function saveStoredUsers(users: User[]): void {
   // Identify deleted user IDs and remove them from Firestore
   const deletedIds = Array.from(currentIds).filter((id) => !newIds.has(id));
 
+  // Identify new or modified users only to conserve Firestore write quota
+  const changedOrNewUsers = users.filter((u) => {
+    const prev = previousUsers.find((p) => p.id === u.id);
+    return !prev || JSON.stringify(prev) !== JSON.stringify(u);
+  });
+
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
   notifyDataChanged();
 
   if (!isRemoteUpdating) {
-    syncSaveUsers(users);
+    if (changedOrNewUsers.length > 0) {
+      syncSaveUsers(changedOrNewUsers);
+      supabaseSaveUsers(changedOrNewUsers);
+    }
     deletedIds.forEach((id) => {
       syncDeleteUser(id);
       syncDeletePassword(id);
+      supabaseDeleteUser(id);
     });
   }
 }
@@ -150,6 +193,7 @@ export function saveSingleUser(user: User): void {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     syncSaveSingleUser(user);
+    supabaseSaveUsers([user]);
   }
 }
 
@@ -175,7 +219,6 @@ export function getStoredLogs(): KAIHEntry[] {
     const data = localStorage.getItem(KEYS.LOGS);
     if (!data) {
       localStorage.setItem(KEYS.LOGS, JSON.stringify(INITIAL_KAIH_LOGS));
-      syncSaveLogs(INITIAL_KAIH_LOGS);
       return INITIAL_KAIH_LOGS;
     }
     return JSON.parse(data);
@@ -185,10 +228,18 @@ export function getStoredLogs(): KAIHEntry[] {
 }
 
 export function saveStoredLogs(logs: KAIHEntry[]): void {
+  const previousLogs = getStoredLogs();
+  const changedOrNewLogs = logs.filter((l) => {
+    const prev = previousLogs.find((p) => p.id === l.id);
+    return !prev || JSON.stringify(prev) !== JSON.stringify(l);
+  });
+
   localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
   notifyDataChanged();
-  if (!isRemoteUpdating) {
-    syncSaveLogs(logs);
+
+  if (!isRemoteUpdating && changedOrNewLogs.length > 0) {
+    syncSaveLogs(changedOrNewLogs);
+    supabaseSaveLogs(changedOrNewLogs);
   }
 }
 
@@ -208,6 +259,7 @@ export function addOrUpdateLog(entry: KAIHEntry): KAIHEntry[] {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     syncAddLog(entry);
+    supabaseSaveLogs([entry]);
   }
   return logs;
 }
@@ -226,6 +278,7 @@ export function saveStoredSchoolConfig(config: MonthlyReportConfig): void {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     syncSaveSchoolConfig(config);
+    supabaseSaveSchoolConfig(config);
   }
 }
 
@@ -245,6 +298,7 @@ export function saveBKNote(note: BKCounselingNote): BKCounselingNote[] {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     syncSaveBKNote(note);
+    supabaseSaveBKNotes(notes as any);
   }
   return notes;
 }

@@ -40,15 +40,20 @@ export interface FirestoreErrorInfo {
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errMsg = error instanceof Error ? error.message : String(error);
-  const isUnavailable =
+  const errCode = (error as { code?: string })?.code;
+
+  const isUnavailableOrQuota =
     errMsg.includes('unavailable') ||
     errMsg.includes('offline') ||
     errMsg.includes('10 seconds') ||
     errMsg.includes('Could not reach Cloud Firestore backend') ||
-    (error as { code?: string })?.code === 'unavailable';
+    errMsg.includes('resource-exhausted') ||
+    errMsg.includes('Quota limit exceeded') ||
+    errCode === 'unavailable' ||
+    errCode === 'resource-exhausted';
   
-  if (isUnavailable) {
-    console.warn(`[Firebase Firestore] Operating in cached offline/reconnecting mode for ${operationType} on ${path}:`, errMsg);
+  if (isUnavailableOrQuota) {
+    console.warn(`[Firebase Firestore] Operating in offline/cached fallback mode for ${operationType} on ${path}:`, errMsg);
     return;
   }
 
