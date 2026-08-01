@@ -289,7 +289,7 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
             @media print {
               @page {
                 size: A4 portrait;
-                margin: 8mm 10mm;
+                margin: 5mm 8mm;
               }
               html, body {
                 background: white !important;
@@ -321,6 +321,14 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
                 background: white !important;
                 box-shadow: none !important;
                 border: none !important;
+                font-size: 8px !important;
+                line-height: 1.15 !important;
+              }
+              .printable-paper-canvas table th,
+              .printable-paper-canvas table td {
+                padding: 1.5px 3px !important;
+                font-size: 8px !important;
+                line-height: 1.1 !important;
               }
               .printable-paper-canvas .print\\:hidden {
                 display: none !important;
@@ -337,7 +345,7 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
           `}</style>
 
           {/* Kop Surat Header */}
-          <div className="border-b-4 border-slate-900 pb-1.5 mb-2.5 print:pb-1.5 print:mb-2 print:border-b-2 flex items-center justify-between gap-2">
+          <div className="border-b-2 border-slate-900 pb-2 mb-2.5 print:pb-1.5 print:mb-2 flex items-center justify-between gap-2">
             {/* Left Logo */}
             <div className="w-16 sm:w-20 shrink-0 flex justify-start">
               <SchoolLogo customLogoUrl={schoolConfig.logoUrl} size="lg" className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 print:w-12 print:h-12" />
@@ -355,7 +363,7 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
                 {schoolConfig.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN'}
               </h2>
               <p className="text-[10px] print:text-[8.5px] text-slate-600 mt-0.5 leading-tight">
-                {schoolConfig.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur'}
+                {schoolConfig.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur 76125'}
               </p>
             </div>
 
@@ -369,58 +377,43 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
               REKAPITULASI MONITORING 7 KEBIASAAN ANAK INDONESIA HEBAT (KAIH)
             </h2>
             <p className="text-xs print:text-[9.5px] font-bold text-slate-600 uppercase mt-0.5">
-              PERIODE: {monthName} {selectedYear} • KELAS: {selectedClass === 'ALL' ? 'SEMUA KELAS' : `KELAS ${selectedClass}`}
+              PERIODE: {monthName.toUpperCase()} {selectedYear} • KELAS: {selectedClass === 'ALL' ? 'SEMUA KELAS' : `KELAS ${selectedClass}`}
             </p>
           </div>
 
           {/* Executive Stats Summary */}
           <div className="grid grid-cols-3 gap-2 mb-2.5 p-2.5 print:p-2 print:mb-2 bg-slate-50 border border-slate-300 rounded-xl text-xs print:text-[8.5px] print:rounded-md">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-blue-100 text-blue-700 rounded-lg shrink-0 print:hidden">
-                <Users className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="text-slate-500 block font-semibold text-[10px] print:text-[8px]">Total Siswa Terdaftar:</span>
-                <strong className="text-sm print:text-[10px] text-slate-900">{students.length} Siswa</strong>
-              </div>
+            <div>
+              <span className="text-slate-500 block font-semibold text-[10px] print:text-[8px]">Total Siswa Terdaftar:</span>
+              <strong className="text-sm print:text-[10px] text-slate-900 font-bold">{students.length} Siswa</strong>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg shrink-0 print:hidden">
-                <ClipboardCheck className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="text-slate-500 block font-semibold text-[10px] print:text-[8px]">Total Presensi Terisi:</span>
-                <strong className="text-sm print:text-[10px] text-blue-700">{monthLogs.length} Log Presensi</strong>
-              </div>
+            <div>
+              <span className="text-slate-500 block font-semibold text-[10px] print:text-[8px]">Total Presensi Terisi:</span>
+              <strong className="text-sm print:text-[10px] text-blue-700 font-bold">{monthLogs.length} Log Presensi</strong>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg shrink-0 print:hidden">
-                <Award className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="text-slate-500 block font-semibold text-[10px] print:text-[8px]">Rata-rata Capaian KAIH:</span>
-                <strong className="text-sm print:text-[10px] text-emerald-700">
-                  {studentSummaries.length > 0
-                    ? Math.round(studentSummaries.reduce((acc, s) => acc + s.avgPercentage, 0) / studentSummaries.length)
-                    : 0}%
-                </strong>
-              </div>
+            <div>
+              <span className="text-slate-500 block font-semibold text-[10px] print:text-[8px]">Rata-rata Capaian KAIH:</span>
+              <strong className="text-sm print:text-[10px] text-emerald-700 font-bold">
+                {studentSummaries.length > 0
+                  ? Math.round(studentSummaries.reduce((acc, s) => acc + s.avgPercentage, 0) / studentSummaries.length)
+                  : 0}%
+              </strong>
             </div>
           </div>
 
           {/* Table */}
           {reportMode === 'SUMMARY' ? (
-            <table className="w-full text-xs print:text-[8.5px] border-collapse border border-slate-400 mb-3 print:mb-2">
+            <table className="w-full text-xs print:text-[8px] border-collapse border border-slate-400 mb-3 print:mb-2">
               <thead>
-                <tr className="bg-slate-800 text-white font-bold uppercase text-center">
-                  <th className="border border-slate-400 p-1.5 print:py-1 print:px-1 w-6">No</th>
-                  <th className="border border-slate-400 p-1.5 print:py-1 print:px-1 text-left">Nama Siswa</th>
-                  <th className="border border-slate-400 p-1.5 print:py-1 print:px-1 w-10">Kelas</th>
-                  <th className="border border-slate-400 p-1.5 print:py-1 print:px-1 w-14">Agama</th>
-                  <th className="border border-slate-400 p-1.5 print:py-1 print:px-1 w-16">Hari Mengisi</th>
-                  <th className="border border-slate-400 p-1.5 print:py-1 print:px-1 w-16">Total KAIH</th>
-                  <th className="border border-slate-400 p-1.5 print:py-1 print:px-1 w-16">Capaian (%)</th>
-                  <th className="border border-slate-400 p-1.5 print:py-1 print:px-1 w-24">Predikat</th>
+                <tr className="bg-[#1e293b] text-white font-bold uppercase text-center text-[10px] print:text-[8px]">
+                  <th className="border border-slate-500 p-1.5 print:py-1 print:px-0.5 w-7">NO</th>
+                  <th className="border border-slate-500 p-1.5 print:py-1 print:px-1 text-left">NAMA SISWA</th>
+                  <th className="border border-slate-500 p-1.5 print:py-1 print:px-0.5 w-12">KELAS</th>
+                  <th className="border border-slate-500 p-1.5 print:py-1 print:px-0.5 w-14">AGAMA</th>
+                  <th className="border border-slate-500 p-1.5 print:py-1 print:px-0.5 w-20">HARI MENGISI</th>
+                  <th className="border border-slate-500 p-1.5 print:py-1 print:px-0.5 w-16">TOTAL KAIH</th>
+                  <th className="border border-slate-500 p-1.5 print:py-1 print:px-0.5 w-20">CAPAIAN (%)</th>
+                  <th className="border border-slate-500 p-1.5 print:py-1 print:px-1 w-28">PREDIKAT</th>
                 </tr>
               </thead>
               <tbody>
@@ -433,14 +426,14 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
                 ) : (
                   studentSummaries.map((s, idx) => (
                     <tr key={s.student.id} className={idx % 2 === 0 ? 'bg-slate-50' : 'bg-white'}>
-                      <td className="border border-slate-300 p-1.5 print:py-[2.5px] print:px-1 text-center font-bold">{idx + 1}</td>
-                      <td className="border border-slate-300 p-1.5 print:py-[2.5px] print:px-1 font-bold text-slate-900">{s.student.name}</td>
-                      <td className="border border-slate-300 p-1.5 print:py-[2.5px] print:px-1 text-center font-semibold">{s.student.assignedClass || '-'}</td>
-                      <td className="border border-slate-300 p-1.5 print:py-[2.5px] print:px-1 text-center">{s.student.agama || 'Islam'}</td>
-                      <td className="border border-slate-300 p-1.5 print:py-[2.5px] print:px-1 text-center font-bold">{s.filledDays}/{daysInMonth} Hari</td>
-                      <td className="border border-slate-300 p-1.5 print:py-[2.5px] print:px-1 text-center">{s.totalCompleted}</td>
-                      <td className="border border-slate-300 p-1.5 print:py-[2.5px] print:px-1 text-center font-extrabold text-blue-800">{s.avgPercentage}%</td>
-                      <td className="border border-slate-300 p-1.5 print:py-[2.5px] print:px-1 text-center font-bold text-slate-800">{s.predicate}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1.5px] print:px-0.5 text-center font-bold">{idx + 1}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1.5px] print:px-1 font-bold text-slate-900 uppercase">{s.student.name}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1.5px] print:px-0.5 text-center font-semibold">{s.student.assignedClass || '-'}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1.5px] print:px-0.5 text-center">{s.student.agama || 'Islam'}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1.5px] print:px-0.5 text-center font-medium">{s.filledDays}/{daysInMonth} Hari</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1.5px] print:px-0.5 text-center">{s.totalCompleted}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1.5px] print:px-0.5 text-center font-bold text-blue-700">{s.avgPercentage}%</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1.5px] print:px-1 text-center font-medium text-slate-800">{s.predicate}</td>
                     </tr>
                   ))
                 )}

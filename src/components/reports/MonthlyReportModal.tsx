@@ -158,7 +158,7 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
             @media print {
               @page {
                 size: A4 portrait;
-                margin: 8mm 10mm;
+                margin: 5mm 8mm;
               }
               html, body {
                 background: white !important;
@@ -190,6 +190,14 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
                 background: white !important;
                 box-shadow: none !important;
                 border: none !important;
+                font-size: 8px !important;
+                line-height: 1.15 !important;
+              }
+              .printable-paper-canvas table th,
+              .printable-paper-canvas table td {
+                padding: 1.5px 3px !important;
+                font-size: 8px !important;
+                line-height: 1.1 !important;
               }
               .printable-paper-canvas .print\\:hidden {
                 display: none !important;
@@ -206,7 +214,7 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
           `}</style>
 
           {/* Official Kop Surat Header */}
-          <div className="border-b-4 border-slate-900 pb-1.5 mb-2.5 print:pb-1.5 print:mb-2 print:border-b-2 flex items-center justify-between gap-2">
+          <div className="border-b-2 border-slate-900 pb-2 mb-2.5 print:pb-1.5 print:mb-2 flex items-center justify-between gap-2">
             {/* Left Logo */}
             <div className="w-16 sm:w-20 shrink-0 flex justify-start">
               <SchoolLogo customLogoUrl={config.logoUrl} size="lg" className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 print:w-12 print:h-12" />
