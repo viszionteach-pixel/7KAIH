@@ -38,6 +38,9 @@ const KEYS = {
   BK_NOTES: 'kaih_smpn10_bk_notes_v1',
   SCHOOL_CONFIG: 'kaih_smpn10_config_v1',
   CUSTOM_PASSWORDS: 'kaih_smpn10_passwords_v1',
+  DELETED_USER_IDS: 'kaih_smpn10_deleted_user_ids_v1',
+  DELETED_LOG_IDS: 'kaih_smpn10_deleted_log_ids_v1',
+  DELETED_BK_NOTE_IDS: 'kaih_smpn10_deleted_bk_note_ids_v1',
 };
 
 // Dispatch custom event to notify all React components of data update
@@ -49,6 +52,141 @@ export function notifyDataChanged() {
 
 // Global flag to prevent infinite loops during remote sync
 let isRemoteUpdating = false;
+
+// Helpers for Tombstones (tracking deleted items across devices/sessions)
+export function getDeletedUserIds(): Set<string> {
+  try {
+    const data = localStorage.getItem(KEYS.DELETED_USER_IDS);
+    return data ? new Set(JSON.parse(data)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function recordDeletedUserId(id: string) {
+  const ids = getDeletedUserIds();
+  ids.add(id);
+  localStorage.setItem(KEYS.DELETED_USER_IDS, JSON.stringify(Array.from(ids)));
+}
+
+export function getDeletedLogIds(): Set<string> {
+  try {
+    const data = localStorage.getItem(KEYS.DELETED_LOG_IDS);
+    return data ? new Set(JSON.parse(data)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function recordDeletedLogId(id: string) {
+  const ids = getDeletedLogIds();
+  ids.add(id);
+  localStorage.setItem(KEYS.DELETED_LOG_IDS, JSON.stringify(Array.from(ids)));
+}
+
+export function getDeletedBKNoteIds(): Set<string> {
+  try {
+    const data = localStorage.getItem(KEYS.DELETED_BK_NOTE_IDS);
+    return data ? new Set(JSON.parse(data)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function recordDeletedBKNoteId(id: string) {
+  const ids = getDeletedBKNoteIds();
+  ids.add(id);
+  localStorage.setItem(KEYS.DELETED_BK_NOTE_IDS, JSON.stringify(Array.from(ids)));
+}
+
+// Smart Merging: local modifications & deletions take priority over stale remote snapshots
+function mergeRemoteUsers(remoteUsers: User[]): User[] {
+  const deleted = getDeletedUserIds();
+  const localUsers = getStoredUsers();
+  const mergedMap = new Map<string, User>();
+
+  // 1. Load local users (if not deleted)
+  localUsers.forEach((u) => {
+    if (!deleted.has(u.id)) {
+      mergedMap.set(u.id, u);
+    }
+  });
+
+  // 2. Merge remote users (skipping deleted ones)
+  remoteUsers.forEach((ru) => {
+    if (!deleted.has(ru.id)) {
+      if (!mergedMap.has(ru.id)) {
+        mergedMap.set(ru.id, ru);
+      } else {
+        const lu = mergedMap.get(ru.id)!;
+        // Merge so local edited fields take precedence over remote stale fields
+        mergedMap.set(ru.id, { ...ru, ...lu });
+      }
+    }
+  });
+
+  const result = Array.from(mergedMap.values());
+  localStorage.setItem(KEYS.USERS, JSON.stringify(result));
+  return result;
+}
+
+function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
+  const deleted = getDeletedLogIds();
+  const localLogs = getStoredLogs();
+  const mergedMap = new Map<string, KAIHEntry>();
+
+  localLogs.forEach((l) => {
+    if (!deleted.has(l.id)) {
+      mergedMap.set(l.id, l);
+    }
+  });
+
+  remoteLogs.forEach((rl) => {
+    if (!deleted.has(rl.id)) {
+      if (!mergedMap.has(rl.id)) {
+        mergedMap.set(rl.id, rl);
+      } else {
+        const ll = mergedMap.get(rl.id)!;
+        mergedMap.set(rl.id, { ...rl, ...ll });
+      }
+    }
+  });
+
+  const result = Array.from(mergedMap.values());
+  localStorage.setItem(KEYS.LOGS, JSON.stringify(result));
+  return result;
+}
+
+function mergeRemoteSchoolConfig(remoteConfig: MonthlyReportConfig): MonthlyReportConfig {
+  const localConfig = getStoredSchoolConfig();
+  const merged = { ...remoteConfig, ...localConfig };
+  localStorage.setItem(KEYS.SCHOOL_CONFIG, JSON.stringify(merged));
+  return merged;
+}
+
+function mergeRemoteBKNotes(remoteNotes: BKCounselingNote[]): BKCounselingNote[] {
+  const deleted = getDeletedBKNoteIds();
+  const localNotes = getStoredBKNotes();
+  const mergedMap = new Map<string, BKCounselingNote>();
+
+  localNotes.forEach((n) => {
+    if (!deleted.has(n.id)) {
+      mergedMap.set(n.id, n);
+    }
+  });
+
+  remoteNotes.forEach((rn) => {
+    if (!deleted.has(rn.id)) {
+      if (!mergedMap.has(rn.id)) {
+        mergedMap.set(rn.id, rn);
+      }
+    }
+  });
+
+  const result = Array.from(mergedMap.values());
+  localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(result));
+  return result;
+}
 
 // Initialize Firebase & Supabase Synchronization across all devices
 let isInitialized = false;
@@ -67,10 +205,10 @@ export async function initFirebaseRealtimeSync() {
       ]);
 
       isRemoteUpdating = true;
-      if (spUsers && spUsers.length > 0) localStorage.setItem(KEYS.USERS, JSON.stringify(spUsers));
-      if (spLogs && spLogs.length > 0) localStorage.setItem(KEYS.LOGS, JSON.stringify(spLogs));
-      if (spConfig) localStorage.setItem(KEYS.SCHOOL_CONFIG, JSON.stringify(spConfig));
-      if (spBKNotes && spBKNotes.length > 0) localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(spBKNotes));
+      if (spUsers && spUsers.length > 0) mergeRemoteUsers(spUsers);
+      if (spLogs && spLogs.length > 0) mergeRemoteLogs(spLogs);
+      if (spConfig) mergeRemoteSchoolConfig(spConfig);
+      if (spBKNotes && spBKNotes.length > 0) mergeRemoteBKNotes(spBKNotes);
       isRemoteUpdating = false;
       notifyDataChanged();
     } catch (err) {
@@ -82,7 +220,7 @@ export async function initFirebaseRealtimeSync() {
   subscribeToUsers((remoteUsers) => {
     if (remoteUsers && remoteUsers.length > 0) {
       isRemoteUpdating = true;
-      localStorage.setItem(KEYS.USERS, JSON.stringify(remoteUsers));
+      mergeRemoteUsers(remoteUsers);
       isRemoteUpdating = false;
       notifyDataChanged();
     }
@@ -92,7 +230,7 @@ export async function initFirebaseRealtimeSync() {
   subscribeToLogs((remoteLogs) => {
     if (remoteLogs) {
       isRemoteUpdating = true;
-      localStorage.setItem(KEYS.LOGS, JSON.stringify(remoteLogs));
+      mergeRemoteLogs(remoteLogs);
       isRemoteUpdating = false;
       notifyDataChanged();
     }
@@ -102,7 +240,7 @@ export async function initFirebaseRealtimeSync() {
   subscribeToSchoolConfig((remoteConfig) => {
     if (remoteConfig) {
       isRemoteUpdating = true;
-      localStorage.setItem(KEYS.SCHOOL_CONFIG, JSON.stringify(remoteConfig));
+      mergeRemoteSchoolConfig(remoteConfig);
       isRemoteUpdating = false;
       notifyDataChanged();
     }
@@ -122,7 +260,7 @@ export async function initFirebaseRealtimeSync() {
   subscribeToBKNotes((remoteNotes) => {
     if (remoteNotes) {
       isRemoteUpdating = true;
-      localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(remoteNotes));
+      mergeRemoteBKNotes(remoteNotes);
       isRemoteUpdating = false;
       notifyDataChanged();
     }
@@ -151,16 +289,21 @@ export function saveStoredUsers(users: User[]): void {
   const currentIds = new Set(previousUsers.map((u) => u.id));
   const newIds = new Set(users.map((u) => u.id));
 
-  // Identify deleted user IDs and remove them from Firestore
+  // Identify deleted user IDs and record them in tombstones
   const deletedIds = Array.from(currentIds).filter((id) => !newIds.has(id));
+  deletedIds.forEach((id) => recordDeletedUserId(id));
+
+  // Ensure deleted users are filtered out
+  const deletedSet = getDeletedUserIds();
+  const validUsers = users.filter((u) => !deletedSet.has(u.id));
 
   // Identify new or modified users only to conserve Firestore write quota
-  const changedOrNewUsers = users.filter((u) => {
+  const changedOrNewUsers = validUsers.filter((u) => {
     const prev = previousUsers.find((p) => p.id === u.id);
     return !prev || JSON.stringify(prev) !== JSON.stringify(u);
   });
 
-  localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+  localStorage.setItem(KEYS.USERS, JSON.stringify(validUsers));
   notifyDataChanged();
 
   if (!isRemoteUpdating) {
@@ -367,6 +510,9 @@ export function resetAllDataToDefault(): void {
   localStorage.removeItem(KEYS.BK_NOTES);
   localStorage.removeItem(KEYS.SCHOOL_CONFIG);
   localStorage.removeItem(KEYS.CUSTOM_PASSWORDS);
+  localStorage.removeItem(KEYS.DELETED_USER_IDS);
+  localStorage.removeItem(KEYS.DELETED_LOG_IDS);
+  localStorage.removeItem(KEYS.DELETED_BK_NOTE_IDS);
   notifyDataChanged();
 }
 

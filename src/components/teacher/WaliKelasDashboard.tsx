@@ -9,6 +9,7 @@ import { DailyPieChart } from '../charts/DailyPieChart';
 import { DailyBarChart, HABIT_NAMES } from '../charts/DailyBarChart';
 import { MonthlyLineChart } from '../charts/MonthlyLineChart';
 import { MonthlyReportModal } from '../reports/MonthlyReportModal';
+import { ExportHabitsModal } from '../reports/ExportHabitsModal';
 import { StudentImportModal } from '../admin/StudentImportModal';
 
 interface WaliKelasDashboardProps {
@@ -24,6 +25,7 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<User | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allLogs, setAllLogs] = useState<KAIHEntry[]>([]);
@@ -199,6 +201,14 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
 
           <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
             <button
+              onClick={() => setIsExportOpen(true)}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
+              title="Export Laporan Kebiasaan Siswa (CSV / Excel / PDF)"
+            >
+              <FileSpreadsheet className="w-4 h-4" /> Export CSV / PDF
+            </button>
+
+            <button
               onClick={() => setIsImportOpen(true)}
               className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
             >
@@ -303,6 +313,16 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
           onClose={() => setSelectedStudentForReport(null)}
         />
       )}
+      {/* Export Habits Modal */}
+      <ExportHabitsModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        currentUser={currentUser}
+        allUsers={allUsers}
+        allLogs={allLogs}
+        defaultClass={assignedClass}
+      />
+
       {/* Student Import Modal */}
       <StudentImportModal
         isOpen={isImportOpen}

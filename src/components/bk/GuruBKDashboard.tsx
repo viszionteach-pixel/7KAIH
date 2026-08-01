@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, AlertTriangle, Search, Filter, MessageSquare, CheckCircle2,
-  BookOpen, Award, FileText, Plus, HeartHandshake
+  BookOpen, Award, FileText, Plus, HeartHandshake, FileSpreadsheet
 } from 'lucide-react';
 import { User, KAIHEntry, BKCounselingNote, ClassName } from '../../types';
 import { getStoredUsers, getStoredLogs, getStoredBKNotes, saveBKNote, getStoredSchoolConfig } from '../../services/storage';
@@ -9,6 +9,7 @@ import { ALL_CLASSES } from '../../data/initialData';
 import { DailyBarChart } from '../charts/DailyBarChart';
 import { MonthlyLineChart } from '../charts/MonthlyLineChart';
 import { MonthlyReportModal } from '../reports/MonthlyReportModal';
+import { ExportHabitsModal } from '../reports/ExportHabitsModal';
 
 interface GuruBKDashboardProps {
   currentUser: User;
@@ -27,6 +28,7 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
   const [bkNotes, setBkNotes] = useState<BKCounselingNote[]>([]);
 
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<User | null>(null);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [noteModalStudent, setNoteModalStudent] = useState<User | null>(null);
   const [newCatatan, setNewCatatan] = useState('');
   const [newTindakan, setNewTindakan] = useState('');
@@ -188,6 +190,15 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
               ))}
             </select>
 
+            {/* Export Button */}
+            <button
+              onClick={() => setIsExportOpen(true)}
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+              title="Export Rekap KAIH untuk Konseling BK (CSV / Excel / PDF)"
+            >
+              <FileSpreadsheet className="w-4 h-4" /> Export CSV / PDF
+            </button>
+
             {/* Filter low compliance only */}
             <button
               onClick={() => setShowLowOnly(!showLowOnly)}
@@ -348,6 +359,16 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
           </div>
         </div>
       )}
+
+      {/* Export Habits Modal */}
+      <ExportHabitsModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        currentUser={currentUser}
+        allUsers={allUsers}
+        allLogs={allLogs}
+        defaultClass={selectedClassFilter as any}
+      />
 
       {/* Monthly Report Modal */}
       {selectedStudentForReport && (

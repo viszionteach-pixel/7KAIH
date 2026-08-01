@@ -13,6 +13,7 @@ import {
   exportFullBackupJSON, importFullBackupJSON
 } from '../../services/storage';
 import { StudentImportModal } from './StudentImportModal';
+import { ExportHabitsModal } from '../reports/ExportHabitsModal';
 
 import { compressImage } from '../../utils/imageCompressor';
 
@@ -30,6 +31,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   // Form State for Add User
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [importTargetRole, setImportTargetRole] = useState<Role>('siswa');
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<Role>('siswa');
@@ -50,6 +52,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   // Password Reset Modal
   const [resetPassUser, setResetPassUser] = useState<User | null>(null);
   const [newPasswordVal, setNewPasswordVal] = useState('');
+
+  // Batch Operations State (Selection / Multi-edit / Multi-delete)
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [batchTargetClass, setBatchTargetClass] = useState<ClassName>('7A');
+  const [batchTargetAgama, setBatchTargetAgama] = useState<'Islam' | 'Kristen' | 'Katolik' | 'Hindu' | 'Buddha' | 'Khonghucu'>('Islam');
+  const [isBatchEditClassOpen, setIsBatchEditClassOpen] = useState(false);
+  const [isBatchEditAgamaOpen, setIsBatchEditAgamaOpen] = useState(false);
 
   // Class Cards Management State
   const [classGradeFilter, setClassGradeFilter] = useState<'ALL' | '7' | '8' | '9'>('ALL');
@@ -256,6 +265,75 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     setHasUnsavedChanges(true);
     setLastActionInfo(`Reset password akun "${resetPassUser.name}"`);
     alert(`Password untuk ${resetPassUser.name} berhasil diubah! Klik "Simpan Perubahan" untuk menyinkronkan.`);
+  };
+
+  // Batch Selection & Batch Actions Handlers
+  const toggleSelectUser = (id: string) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = (userList: User[]) => {
+    const listIds = userList.map((u) => u.id);
+    const allSelected = listIds.length > 0 && listIds.every((id) => selectedUserIds.includes(id));
+    if (allSelected) {
+      setSelectedUserIds((prev) => prev.filter((id) => !listIds.includes(id)));
+    } else {
+      setSelectedUserIds((prev) => Array.from(new Set([...prev, ...listIds])));
+    }
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedUserIds.length === 0) return;
+    if (confirm(`Apakah Anda YAKIN ingin MENGHAPUS ${selectedUserIds.length} data pengguna/siswa yang diceklis sekaligus?`)) {
+      const count = selectedUserIds.length;
+      const updated = users.filter((u) => !selectedUserIds.includes(u.id));
+      saveStoredUsers(updated);
+      setUsers(updated);
+      setSelectedUserIds([]);
+      setHasUnsavedChanges(true);
+      setLastActionInfo(`Penghapusan massal ${count} data akun pengguna`);
+      alert(`Berhasil menghapus ${count} data akun terpilih! Klik "Simpan Perubahan" untuk menyinkronkan seluruhnya ke Cloud.`);
+    }
+  };
+
+  const handleBatchUpdateClass = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedUserIds.length === 0) return;
+    const count = selectedUserIds.length;
+    const updated = users.map((u) => {
+      if (selectedUserIds.includes(u.id)) {
+        return { ...u, assignedClass: batchTargetClass };
+      }
+      return u;
+    });
+    saveStoredUsers(updated);
+    setUsers(updated);
+    setSelectedUserIds([]);
+    setIsBatchEditClassOpen(false);
+    setHasUnsavedChanges(true);
+    setLastActionInfo(`Pindah kelas massal ${count} siswa ke Kelas ${batchTargetClass}`);
+    alert(`Berhasil memindahkan ${count} siswa terpilih ke Kelas ${batchTargetClass}! Klik "Simpan Perubahan" untuk konfirmasi.`);
+  };
+
+  const handleBatchUpdateAgama = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedUserIds.length === 0) return;
+    const count = selectedUserIds.length;
+    const updated = users.map((u) => {
+      if (selectedUserIds.includes(u.id)) {
+        return { ...u, agama: batchTargetAgama };
+      }
+      return u;
+    });
+    saveStoredUsers(updated);
+    setUsers(updated);
+    setSelectedUserIds([]);
+    setIsBatchEditAgamaOpen(false);
+    setHasUnsavedChanges(true);
+    setLastActionInfo(`Ubah agama massal ${count} siswa menjadi ${batchTargetAgama}`);
+    alert(`Berhasil mengubah agama ${count} siswa terpilih menjadi ${batchTargetAgama}! Klik "Simpan Perubahan" untuk konfirmasi.`);
   };
 
   // Image upload helpers (Auto-compressed to ~30-50KB for fast Vercel & Firestore sync)
@@ -534,6 +612,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
               </select>
 
               <button
+                onClick={() => setIsExportModalOpen(true)}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                title="Export Laporan Kebiasaan Siswa (CSV / Excel / PDF)"
+              >
+                <FileSpreadsheet className="w-4 h-4" /> Export CSV / PDF
+              </button>
+
+              <button
                 onClick={() => {
                   setImportTargetRole('siswa');
                   setIsImportModalOpen(true);
@@ -562,11 +648,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
             </div>
           </div>
 
+          {/* BATCH ACTION BAR WHEN ITEMS ARE CHECKED */}
+          {selectedUserIds.length > 0 && (
+            <div className="mx-6 p-4 bg-slate-900 text-white rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xl border border-slate-800 animate-fadeIn">
+              <div className="flex items-center gap-3">
+                <span className="bg-rose-600 text-white font-extrabold px-3 py-1 rounded-full text-xs">
+                  {selectedUserIds.length} Akun Dipilih
+                </span>
+                <span className="text-xs font-semibold text-slate-300">
+                  Tindakan Sekaligus (Batch Actions):
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setIsBatchEditClassOpen(true)}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-sm"
+                >
+                  <Edit className="w-3.5 h-3.5" /> Ubah Kelas Sekaligus
+                </button>
+                <button
+                  onClick={() => setIsBatchEditAgamaOpen(true)}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-sm"
+                >
+                  <Award className="w-3.5 h-3.5" /> Ubah Agama Sekaligus
+                </button>
+                <button
+                  onClick={handleBatchDelete}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-sm"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Hapus ({selectedUserIds.length}) Terpilih
+                </button>
+                <button
+                  onClick={() => setSelectedUserIds([])}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition-all"
+                >
+                  Batal Pilih
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* User Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                  <th className="py-3.5 px-4 w-12 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredUsers.length > 0 &&
+                        filteredUsers.every((u) => selectedUserIds.includes(u.id))
+                      }
+                      onChange={() => toggleSelectAll(filteredUsers)}
+                      className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 cursor-pointer accent-rose-600"
+                      title="Pilih / Batal Pilih Semua di Tampilan Ini"
+                    />
+                  </th>
                   <th className="py-3.5 px-6">Nama Lengkap</th>
                   <th className="py-3.5 px-6">Username / Login ID</th>
                   <th className="py-3.5 px-6">Peran / Hak Akses</th>
@@ -575,58 +713,74 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-4 px-6 font-bold text-slate-900">
-                      {u.name}
-                      {u.adminTitle && (
-                        <span className="block text-[10px] text-slate-400 font-normal">{u.adminTitle}</span>
-                      )}
-                    </td>
-                    <td className="py-4 px-6 font-mono text-slate-600">{u.username}</td>
-                    <td className="py-4 px-6 font-bold">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-extrabold ${
-                        u.role === 'admin' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
-                        u.role === 'guru_bk' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
-                        u.role === 'wali_kelas' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
-                        'bg-blue-100 text-blue-800 border border-blue-200'
-                      }`}>
-                        {u.role === 'admin' ? 'ADMIN KONSOL' :
-                         u.role === 'guru_bk' ? 'GURU BK' :
-                         u.role === 'wali_kelas' ? 'WALI KELAS' :
-                         'SISWA'}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 font-bold text-slate-700">
-                      {u.assignedClass ? `Kelas ${u.assignedClass}` : u.role === 'guru_bk' ? 'Bimbingan Konseling' : u.role === 'admin' ? 'Super Admin' : '-'}
-                    </td>
-                    <td className="py-4 px-6 text-right space-x-1.5">
-                      <button
-                        onClick={() => handleOpenEditUser(u)}
-                        className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
-                        title="Edit Data Pengguna"
-                      >
-                        <Edit className="w-3.5 h-3.5 text-blue-600" /> Edit
-                      </button>
+                {filteredUsers.map((u) => {
+                  const isChecked = selectedUserIds.includes(u.id);
+                  return (
+                    <tr
+                      key={u.id}
+                      className={`transition-colors ${
+                        isChecked ? 'bg-rose-50/60' : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <td className="py-4 px-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleSelectUser(u.id)}
+                          className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 cursor-pointer accent-rose-600"
+                        />
+                      </td>
+                      <td className="py-4 px-6 font-bold text-slate-900">
+                        {u.name}
+                        {u.adminTitle && (
+                          <span className="block text-[10px] text-slate-400 font-normal">{u.adminTitle}</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 font-mono text-slate-600">{u.username}</td>
+                      <td className="py-4 px-6 font-bold">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-extrabold ${
+                          u.role === 'admin' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                          u.role === 'guru_bk' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                          u.role === 'wali_kelas' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                          'bg-blue-100 text-blue-800 border border-blue-200'
+                        }`}>
+                          {u.role === 'admin' ? 'ADMIN KONSOL' :
+                           u.role === 'guru_bk' ? 'GURU BK' :
+                           u.role === 'wali_kelas' ? 'WALI KELAS' :
+                           'SISWA'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 font-bold text-slate-700">
+                        {u.assignedClass ? `Kelas ${u.assignedClass}` : u.role === 'guru_bk' ? 'Bimbingan Konseling' : u.role === 'admin' ? 'Super Admin' : '-'}
+                      </td>
+                      <td className="py-4 px-6 text-right space-x-1.5">
+                        <button
+                          onClick={() => handleOpenEditUser(u)}
+                          className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
+                          title="Edit Data Pengguna"
+                        >
+                          <Edit className="w-3.5 h-3.5 text-blue-600" /> Edit
+                        </button>
 
-                      <button
-                        onClick={() => setResetPassUser(u)}
-                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
-                        title="Reset Password Akun"
-                      >
-                        <Key className="w-3.5 h-3.5" /> Password
-                      </button>
+                        <button
+                          onClick={() => setResetPassUser(u)}
+                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
+                          title="Reset Password Akun"
+                        >
+                          <Key className="w-3.5 h-3.5" /> Password
+                        </button>
 
-                      <button
-                        onClick={() => handleDeleteUser(u)}
-                        className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
-                        title="Hapus Akun Pengguna"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Hapus
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        <button
+                          onClick={() => handleDeleteUser(u)}
+                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
+                          title="Hapus Akun Pengguna"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Hapus
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1561,8 +1715,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                 return (
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider sticky top-0 bg-slate-50">
-                        <th className="py-3 px-4 w-12 text-center">No</th>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider sticky top-0 bg-slate-50 z-10">
+                        <th className="py-3 px-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={
+                              classStudents.length > 0 &&
+                              classStudents.every((st) => selectedUserIds.includes(st.id))
+                            }
+                            onChange={() => toggleSelectAll(classStudents)}
+                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600"
+                            title="Pilih / Batal Pilih Semua Siswa di Kelas Ini"
+                          />
+                        </th>
+                        <th className="py-3 px-3 w-10 text-center">No</th>
                         <th className="py-3 px-4">Nama Lengkap Siswa</th>
                         <th className="py-3 px-4">Username / ID Login</th>
                         <th className="py-3 px-4">Agama</th>
@@ -1570,41 +1736,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {classStudents.map((st, idx) => (
-                        <tr key={st.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
-                          <td className="py-3 px-4 font-bold text-slate-900">{st.name}</td>
-                          <td className="py-3 px-4 text-slate-600 font-mono text-[11px]">{st.username}</td>
-                          <td className="py-3 px-4">
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                              {st.agama || 'Islam'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right space-x-1">
-                            <button
-                              onClick={() => handleOpenEditUser(st)}
-                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-[10px] inline-flex items-center gap-1 transition-all"
-                              title="Edit Data Siswa"
-                            >
-                              <Edit className="w-3 h-3" /> Edit
-                            </button>
-                            <button
-                              onClick={() => setResetPassUser(st)}
-                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[10px] inline-flex items-center gap-1 transition-all"
-                              title="Reset Password Siswa"
-                            >
-                              <Key className="w-3 h-3" /> Password
-                            </button>
-                            <button
-                              onClick={() => handleDeleteUser(st)}
-                              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-lg text-[10px] inline-flex items-center gap-1 transition-all"
-                              title="Hapus Siswa Dari Kelas Ini"
-                            >
-                              <Trash2 className="w-3 h-3 text-rose-600" /> Hapus
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {classStudents.map((st, idx) => {
+                        const isChecked = selectedUserIds.includes(st.id);
+                        return (
+                          <tr
+                            key={st.id}
+                            className={`transition-colors ${
+                              isChecked ? 'bg-blue-50/60' : 'hover:bg-slate-50/80'
+                            }`}
+                          >
+                            <td className="py-3 px-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleSelectUser(st.id)}
+                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600"
+                              />
+                            </td>
+                            <td className="py-3 px-3 text-center font-bold text-slate-400">{idx + 1}</td>
+                            <td className="py-3 px-4 font-bold text-slate-900">{st.name}</td>
+                            <td className="py-3 px-4 text-slate-600 font-mono text-[11px]">{st.username}</td>
+                            <td className="py-3 px-4">
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                {st.agama || 'Islam'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right space-x-1">
+                              <button
+                                onClick={() => handleOpenEditUser(st)}
+                                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-[10px] inline-flex items-center gap-1 transition-all"
+                                title="Edit Data Siswa"
+                              >
+                                <Edit className="w-3 h-3" /> Edit
+                              </button>
+                              <button
+                                onClick={() => setResetPassUser(st)}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[10px] inline-flex items-center gap-1 transition-all"
+                                title="Reset Password Siswa"
+                              >
+                                <Key className="w-3 h-3" /> Password
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(st)}
+                                className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-lg text-[10px] inline-flex items-center gap-1 transition-all"
+                                title="Hapus Siswa Dari Kelas Ini"
+                              >
+                                <Trash2 className="w-3 h-3 text-rose-600" /> Hapus
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 );
@@ -1633,6 +1815,154 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
           </div>
         </div>
       )}
+
+      {/* Batch Edit Class Modal */}
+      {isBatchEditClassOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-800 font-bold flex items-center justify-center">
+                  <Edit className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Pindah / Ubah Kelas Sekaligus
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Memindahkan {selectedUserIds.length} siswa terpilih ke kelas baru
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsBatchEditClassOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleBatchUpdateClass} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Pilih Kelas Tujuan Baru:
+                </label>
+                <select
+                  value={batchTargetClass}
+                  onChange={(e) => setBatchTargetClass(e.target.value as ClassName)}
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl outline-none font-extrabold text-slate-900 focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  {ALL_CLASSES.map((cls) => (
+                    <option key={cls} value={cls}>
+                      Kelas {cls}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-800 text-[11px] font-medium leading-relaxed">
+                ℹ️ Tindakan ini akan secara otomatis mengubah kelas dari <strong>{selectedUserIds.length} siswa</strong> yang Anda centang menjadi <strong>Kelas {batchTargetClass}</strong>.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchEditClassOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl shadow-sm transition-all"
+                >
+                  Terapkan Ke {selectedUserIds.length} Siswa
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Edit Agama Modal */}
+      {isBatchEditAgamaOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 font-bold flex items-center justify-center">
+                  <Award className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Ubah Agama Sekaligus
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Mengubah data agama untuk {selectedUserIds.length} siswa terpilih
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsBatchEditAgamaOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleBatchUpdateAgama} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Pilih Agama:
+                </label>
+                <select
+                  value={batchTargetAgama}
+                  onChange={(e) => setBatchTargetAgama(e.target.value as any)}
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl outline-none font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 text-sm"
+                >
+                  <option value="Islam">Islam</option>
+                  <option value="Kristen">Kristen</option>
+                  <option value="Katolik">Katolik</option>
+                  <option value="Hindu">Hindu</option>
+                  <option value="Buddha">Buddha</option>
+                  <option value="Khonghucu">Khonghucu</option>
+                </select>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px] font-medium leading-relaxed">
+                ℹ️ Agama dari <strong>{selectedUserIds.length} siswa</strong> terpilih akan diperbarui menjadi <strong>{batchTargetAgama}</strong>.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchEditAgamaOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl shadow-sm transition-all"
+                >
+                  Terapkan Ke {selectedUserIds.length} Siswa
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Export Habits Modal (CSV / Excel / PDF) */}
+      <ExportHabitsModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        currentUser={currentUser}
+        allUsers={users}
+        allLogs={getStoredLogs()}
+      />
 
       {/* Data Import Modal (Siswa & Wali Kelas) */}
       <StudentImportModal
