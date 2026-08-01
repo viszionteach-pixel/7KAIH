@@ -16,7 +16,11 @@ import {
   syncDeletePassword,
   subscribeToBKNotes,
   syncSaveBKNote,
-  syncDeleteBKNote
+  syncDeleteBKNote,
+  fetchAllCloudUsers,
+  fetchAllCloudLogs,
+  fetchCloudSchoolConfig,
+  fetchAllCloudBKNotes
 } from './firebase';
 import {
   isSupabaseConfigured,
@@ -99,28 +103,28 @@ export function recordDeletedBKNoteId(id: string) {
   localStorage.setItem(KEYS.DELETED_BK_NOTE_IDS, JSON.stringify(Array.from(ids)));
 }
 
-// Smart Merging: local modifications & deletions take priority over stale remote snapshots
+// Smart Merging: Remote Cloud Firestore updates take priority over stale local cache, while preserving unsynced local items
 function mergeRemoteUsers(remoteUsers: User[]): User[] {
   const deleted = getDeletedUserIds();
   const localUsers = getStoredUsers();
   const mergedMap = new Map<string, User>();
 
-  // 1. Load local users (if not deleted)
-  localUsers.forEach((u) => {
-    if (!deleted.has(u.id)) {
-      mergedMap.set(u.id, u);
+  // 1. Add remote users first (excluding tombstones)
+  remoteUsers.forEach((ru) => {
+    if (!deleted.has(ru.id)) {
+      mergedMap.set(ru.id, ru);
     }
   });
 
-  // 2. Merge remote users (skipping deleted ones)
-  remoteUsers.forEach((ru) => {
-    if (!deleted.has(ru.id)) {
-      if (!mergedMap.has(ru.id)) {
-        mergedMap.set(ru.id, ru);
+  // 2. Merge local users (if created locally and not yet synced)
+  localUsers.forEach((lu) => {
+    if (!deleted.has(lu.id)) {
+      if (!mergedMap.has(lu.id)) {
+        mergedMap.set(lu.id, lu);
       } else {
-        const lu = mergedMap.get(ru.id)!;
-        // Merge so local edited fields take precedence over remote stale fields
-        mergedMap.set(ru.id, { ...ru, ...lu });
+        const ru = mergedMap.get(lu.id)!;
+        // Remote Cloud data (ru) takes precedence over stale local cache (lu)!
+        mergedMap.set(lu.id, { ...lu, ...ru });
       }
     }
   });
@@ -135,19 +139,20 @@ function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
   const localLogs = getStoredLogs();
   const mergedMap = new Map<string, KAIHEntry>();
 
-  localLogs.forEach((l) => {
-    if (!deleted.has(l.id)) {
-      mergedMap.set(l.id, l);
+  remoteLogs.forEach((rl) => {
+    if (!deleted.has(rl.id)) {
+      mergedMap.set(rl.id, rl);
     }
   });
 
-  remoteLogs.forEach((rl) => {
-    if (!deleted.has(rl.id)) {
-      if (!mergedMap.has(rl.id)) {
-        mergedMap.set(rl.id, rl);
+  localLogs.forEach((ll) => {
+    if (!deleted.has(ll.id)) {
+      if (!mergedMap.has(ll.id)) {
+        mergedMap.set(ll.id, ll);
       } else {
-        const ll = mergedMap.get(rl.id)!;
-        mergedMap.set(rl.id, { ...rl, ...ll });
+        const rl = mergedMap.get(ll.id)!;
+        // Remote Cloud data (rl) takes precedence over stale local cache (ll)!
+        mergedMap.set(ll.id, { ...ll, ...rl });
       }
     }
   });
@@ -159,7 +164,8 @@ function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
 
 function mergeRemoteSchoolConfig(remoteConfig: MonthlyReportConfig): MonthlyReportConfig {
   const localConfig = getStoredSchoolConfig();
-  const merged = { ...remoteConfig, ...localConfig };
+  // Remote Cloud config takes precedence over stale local cache
+  const merged = { ...localConfig, ...remoteConfig };
   localStorage.setItem(KEYS.SCHOOL_CONFIG, JSON.stringify(merged));
   return merged;
 }
@@ -169,16 +175,19 @@ function mergeRemoteBKNotes(remoteNotes: BKCounselingNote[]): BKCounselingNote[]
   const localNotes = getStoredBKNotes();
   const mergedMap = new Map<string, BKCounselingNote>();
 
-  localNotes.forEach((n) => {
-    if (!deleted.has(n.id)) {
-      mergedMap.set(n.id, n);
+  remoteNotes.forEach((rn) => {
+    if (!deleted.has(rn.id)) {
+      mergedMap.set(rn.id, rn);
     }
   });
 
-  remoteNotes.forEach((rn) => {
-    if (!deleted.has(rn.id)) {
-      if (!mergedMap.has(rn.id)) {
-        mergedMap.set(rn.id, rn);
+  localNotes.forEach((ln) => {
+    if (!deleted.has(ln.id)) {
+      if (!mergedMap.has(ln.id)) {
+        mergedMap.set(ln.id, ln);
+      } else {
+        const rn = mergedMap.get(ln.id)!;
+        mergedMap.set(ln.id, { ...ln, ...rn });
       }
     }
   });
@@ -186,6 +195,38 @@ function mergeRemoteBKNotes(remoteNotes: BKCounselingNote[]): BKCounselingNote[]
   const result = Array.from(mergedMap.values());
   localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(result));
   return result;
+}
+
+export async function forceFetchFromCloud(): Promise<boolean> {
+  try {
+    isRemoteUpdating = true;
+    const [cloudUsers, cloudLogs, cloudConfig, cloudNotes] = await Promise.all([
+      fetchAllCloudUsers(),
+      fetchAllCloudLogs(),
+      fetchCloudSchoolConfig(),
+      fetchAllCloudBKNotes(),
+    ]);
+
+    if (cloudUsers && cloudUsers.length > 0) {
+      mergeRemoteUsers(cloudUsers);
+    }
+    if (cloudLogs) {
+      mergeRemoteLogs(cloudLogs);
+    }
+    if (cloudConfig) {
+      mergeRemoteSchoolConfig(cloudConfig);
+    }
+    if (cloudNotes) {
+      mergeRemoteBKNotes(cloudNotes);
+    }
+    isRemoteUpdating = false;
+    notifyDataChanged();
+    return true;
+  } catch (err) {
+    console.error('Failed to force sync from cloud:', err);
+    isRemoteUpdating = false;
+    return false;
+  }
 }
 
 // Initialize Firebase & Supabase Synchronization across all devices

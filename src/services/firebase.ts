@@ -105,12 +105,16 @@ export function subscribeToUsers(callback: (users: User[]) => void) {
 
 export async function syncSaveUsers(users: User[]) {
   try {
-    const batch = writeBatch(db);
-    users.forEach((u) => {
-      const docRef = doc(db, USERS_COL, u.id);
-      batch.set(docRef, cleanForFirestore(u), { merge: true });
-    });
-    await batch.commit();
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < users.length; i += CHUNK_SIZE) {
+      const chunk = users.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      chunk.forEach((u) => {
+        const docRef = doc(db, USERS_COL, u.id);
+        batch.set(docRef, cleanForFirestore(u), { merge: true });
+      });
+      await batch.commit();
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, USERS_COL);
   }
@@ -137,12 +141,16 @@ export async function syncDeleteUser(userId: string) {
 async function seedInitialUsers() {
   try {
     const allUsers = [...INITIAL_ADMINS, ...INITIAL_GURU_BK, ...INITIAL_WALI_KELAS, ...INITIAL_STUDENTS];
-    const batch = writeBatch(db);
-    allUsers.forEach((u) => {
-      const docRef = doc(db, USERS_COL, u.id);
-      batch.set(docRef, cleanForFirestore(u));
-    });
-    await batch.commit();
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < allUsers.length; i += CHUNK_SIZE) {
+      const chunk = allUsers.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      chunk.forEach((u) => {
+        const docRef = doc(db, USERS_COL, u.id);
+        batch.set(docRef, cleanForFirestore(u));
+      });
+      await batch.commit();
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, USERS_COL);
   }
@@ -173,12 +181,16 @@ export function subscribeToLogs(callback: (logs: KAIHEntry[]) => void) {
 
 export async function syncSaveLogs(logs: KAIHEntry[]) {
   try {
-    const batch = writeBatch(db);
-    logs.forEach((log) => {
-      const docRef = doc(db, LOGS_COL, log.id);
-      batch.set(docRef, cleanForFirestore(log), { merge: true });
-    });
-    await batch.commit();
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < logs.length; i += CHUNK_SIZE) {
+      const chunk = logs.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      chunk.forEach((log) => {
+        const docRef = doc(db, LOGS_COL, log.id);
+        batch.set(docRef, cleanForFirestore(log), { merge: true });
+      });
+      await batch.commit();
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, LOGS_COL);
   }
@@ -204,12 +216,16 @@ export async function syncDeleteLog(logId: string) {
 
 async function seedInitialLogs() {
   try {
-    const batch = writeBatch(db);
-    INITIAL_KAIH_LOGS.forEach((log) => {
-      const docRef = doc(db, LOGS_COL, log.id);
-      batch.set(docRef, cleanForFirestore(log));
-    });
-    await batch.commit();
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < INITIAL_KAIH_LOGS.length; i += CHUNK_SIZE) {
+      const chunk = INITIAL_KAIH_LOGS.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      chunk.forEach((log) => {
+        const docRef = doc(db, LOGS_COL, log.id);
+        batch.set(docRef, cleanForFirestore(log));
+      });
+      await batch.commit();
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, LOGS_COL);
   }
@@ -320,6 +336,66 @@ export async function syncDeleteBKNote(noteId: string) {
     await deleteDoc(docRef);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `${BK_NOTES_COL}/${noteId}`);
+  }
+}
+
+// 6. DIRECT FETCH FROM CLOUD FIRESTORE
+export async function fetchAllCloudUsers(): Promise<User[]> {
+  try {
+    const colRef = collection(db, USERS_COL);
+    const snapshot = await getDocs(colRef);
+    const users: User[] = [];
+    snapshot.forEach((docSnap) => {
+      users.push(docSnap.data() as User);
+    });
+    return users;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, USERS_COL);
+    return [];
+  }
+}
+
+export async function fetchAllCloudLogs(): Promise<KAIHEntry[]> {
+  try {
+    const colRef = collection(db, LOGS_COL);
+    const snapshot = await getDocs(colRef);
+    const logs: KAIHEntry[] = [];
+    snapshot.forEach((docSnap) => {
+      logs.push(docSnap.data() as KAIHEntry);
+    });
+    return logs;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, LOGS_COL);
+    return [];
+  }
+}
+
+export async function fetchCloudSchoolConfig(): Promise<MonthlyReportConfig | null> {
+  try {
+    const docRef = doc(db, CONFIG_COL, 'main');
+    const snap = await getDocFromServer(docRef).catch(() => null);
+    if (snap && snap.exists()) {
+      return snap.data() as MonthlyReportConfig;
+    }
+    return null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `${CONFIG_COL}/main`);
+    return null;
+  }
+}
+
+export async function fetchAllCloudBKNotes(): Promise<BKCounselingNote[]> {
+  try {
+    const colRef = collection(db, BK_NOTES_COL);
+    const snapshot = await getDocs(colRef);
+    const notes: BKCounselingNote[] = [];
+    snapshot.forEach((docSnap) => {
+      notes.push(docSnap.data() as BKCounselingNote);
+    });
+    return notes;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, BK_NOTES_COL);
+    return [];
   }
 }
 

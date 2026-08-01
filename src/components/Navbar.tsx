@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, Info, Shield, User as UserIcon, BookOpen, Clock, RefreshCw, CloudCheck, Wifi } from 'lucide-react';
+import { LogOut, Info, Shield, User as UserIcon, BookOpen, Clock, RefreshCw, CloudCheck, Wifi, CloudDownload } from 'lucide-react';
 import { User } from '../types';
 import { SchoolLogo } from './SchoolLogo';
+import { forceFetchFromCloud } from '../services/storage';
 
 interface NavbarProps {
   currentUser: User | null;
@@ -18,6 +19,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [timeStr, setTimeStr] = useState<string>('');
   const [dateStr, setDateStr] = useState<string>('');
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncToast, setSyncToast] = useState<string | null>(null);
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    const success = await forceFetchFromCloud();
+    setIsSyncing(false);
+    if (success) {
+      setSyncToast('✓ Data berhasil disinkronkan langsung dari Cloud Firestore!');
+    } else {
+      setSyncToast('⚠️ Sinkronisasi Cloud selesai (mode offline/local).');
+    }
+    setTimeout(() => setSyncToast(null), 3500);
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -90,6 +105,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Action buttons */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Manual Sync Cloud button */}
+          <button
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700/80 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg border border-emerald-500/50 shadow-sm transition-all disabled:opacity-50"
+            title="Sinkronkan Data Terbaru Langsung dari Cloud Firestore"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan Cloud'}</span>
+          </button>
+
           {/* Tentang 7 KAIH button */}
           <button
             onClick={onOpenAbout}
@@ -142,6 +168,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
       </div>
+
+      {syncToast && (
+        <div className="bg-emerald-600 text-white text-xs font-bold py-1.5 px-4 text-center border-t border-emerald-500 shadow-inner animate-fadeIn flex items-center justify-center gap-2">
+          <CloudCheck className="w-4 h-4" />
+          <span>{syncToast}</span>
+        </div>
+      )}
     </header>
   );
 };
