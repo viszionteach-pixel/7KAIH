@@ -171,23 +171,23 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
           `}</style>
 
           {/* Official Kop Surat Header */}
-          <div className="border-b-4 border-slate-900 pb-3 mb-6 flex items-center justify-between text-center sm:text-left">
-            <div className="flex items-center gap-4">
-              <SchoolLogo customLogoUrl={config.logoUrl} size="lg" className="shrink-0" />
-              <div>
-                <h4 className="text-xs font-extrabold uppercase tracking-widest text-slate-600">
-                  PEMERINTAH KOTA BALIKPAPAN
-                </h4>
-                <h3 className="text-sm font-black uppercase text-slate-800">
-                  DINAS PENDIDIKAN DAN KEBUDAYAAN
-                </h3>
-                <h2 className="text-lg font-black uppercase text-blue-900 tracking-tight">
-                  {config.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN'}
-                </h2>
-                <p className="text-[10px] text-slate-500 mt-0.5 max-w-xl">
-                  {config.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur'}
-                </p>
-              </div>
+          <div className="relative border-b-4 border-slate-900 pb-3 mb-6 min-h-[90px] flex items-center justify-center">
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center">
+              <SchoolLogo customLogoUrl={config.logoUrl} size="lg" className="shrink-0 w-16 h-16 sm:w-20 sm:h-20" />
+            </div>
+            <div className="text-center w-full px-20">
+              <h4 className="text-xs font-extrabold uppercase tracking-widest text-slate-700">
+                PEMERINTAH KOTA BALIKPAPAN
+              </h4>
+              <h3 className="text-sm font-black uppercase text-slate-900">
+                DINAS PENDIDIKAN DAN KEBUDAYAAN
+              </h3>
+              <h2 className="text-lg sm:text-xl font-black uppercase text-blue-900 tracking-tight">
+                {config.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN'}
+              </h2>
+              <p className="text-[10px] text-slate-600 mt-0.5 max-w-xl mx-auto leading-tight">
+                {config.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur'}
+              </p>
             </div>
           </div>
 
