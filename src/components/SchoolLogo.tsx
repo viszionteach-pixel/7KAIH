@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { getStoredSchoolConfig } from '../services/storage';
 
 interface SchoolLogoProps {
@@ -17,8 +17,33 @@ export const SchoolLogo: React.FC<SchoolLogoProps> = ({ className = '', size = '
     '2xl': 'w-32 h-32',
   };
 
-  const storedConfig = getStoredSchoolConfig();
-  const activeLogo = customLogoUrl || storedConfig.logoUrl || '/logo_smpn10.jpg';
+  const [logoUrl, setLogoUrl] = useState<string>(() => {
+    if (customLogoUrl) return customLogoUrl;
+    const config = getStoredSchoolConfig();
+    return config.logoUrl || '/logo_smpn10.jpg';
+  });
+
+  useEffect(() => {
+    if (customLogoUrl) {
+      setLogoUrl(customLogoUrl);
+      return;
+    }
+
+    const updateLogo = () => {
+      const config = getStoredSchoolConfig();
+      setLogoUrl(config.logoUrl || '/logo_smpn10.jpg');
+    };
+
+    updateLogo();
+
+    window.addEventListener('kaih_data_updated', updateLogo);
+    window.addEventListener('storage', updateLogo);
+
+    return () => {
+      window.removeEventListener('kaih_data_updated', updateLogo);
+      window.removeEventListener('storage', updateLogo);
+    };
+  }, [customLogoUrl]);
 
   return (
     <div
@@ -26,10 +51,13 @@ export const SchoolLogo: React.FC<SchoolLogoProps> = ({ className = '', size = '
       className={`relative inline-flex items-center justify-center select-none ${sizeClasses[size]} ${className} ${onClick ? 'cursor-pointer active:scale-95' : ''}`}
     >
       <img
-        src={activeLogo}
+        src={logoUrl}
         alt="Logo Sekolah"
         className="w-full h-full object-contain rounded-full drop-shadow-md transition-all duration-300 hover:scale-105"
         referrerPolicy="no-referrer"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = '/logo_smpn10.jpg';
+        }}
       />
     </div>
   );
