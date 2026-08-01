@@ -1,28 +1,6 @@
 import { User, KAIHEntry, BKCounselingNote, MonthlyReportConfig } from '../types';
 import { INITIAL_ADMINS, INITIAL_GURU_BK, INITIAL_WALI_KELAS, INITIAL_STUDENTS, INITIAL_KAIH_LOGS, INITIAL_SCHOOL_CONFIG } from '../data/initialData';
 import {
-  subscribeToUsers,
-  syncSaveUsers,
-  syncSaveSingleUser,
-  syncDeleteUser,
-  subscribeToLogs,
-  syncSaveLogs,
-  syncAddLog,
-  syncDeleteLog,
-  subscribeToSchoolConfig,
-  syncSaveSchoolConfig,
-  subscribeToPasswords,
-  syncSaveCustomPassword,
-  syncDeletePassword,
-  subscribeToBKNotes,
-  syncSaveBKNote,
-  syncDeleteBKNote,
-  fetchAllCloudUsers,
-  fetchAllCloudLogs,
-  fetchCloudSchoolConfig,
-  fetchAllCloudBKNotes
-} from './firebase';
-import {
   isSupabaseConfigured,
   supabaseSaveUsers,
   supabaseDeleteUser,
@@ -32,7 +10,10 @@ import {
   supabaseSaveSchoolConfig,
   supabaseFetchSchoolConfig,
   supabaseSaveBKNotes,
-  supabaseFetchBKNotes
+  supabaseFetchBKNotes,
+  supabaseSaveCustomPassword,
+  supabaseFetchCustomPasswords,
+  subscribeToSupabaseRealtime
 } from './supabase';
 
 const KEYS = {
@@ -103,14 +84,19 @@ export function recordDeletedBKNoteId(id: string) {
   localStorage.setItem(KEYS.DELETED_BK_NOTE_IDS, JSON.stringify(Array.from(ids)));
 }
 
-// Smart Merging: Remote Cloud Firestore updates take priority over stale local cache, while preserving unsynced local items
+// Smart Merging: Remote Supabase updates take priority over stale local cache, while preserving unsynced local items
 function mergeRemoteUsers(remoteUsers: User[]): User[] {
   const deleted = getDeletedUserIds();
   const localUsers = getStoredUsers();
   const mergedMap = new Map<string, User>();
 
-  // 1. Add remote users first (excluding tombstones)
+  // 1. Add remote users first (excluding tombstones and sample students with lowercase names)
   remoteUsers.forEach((ru) => {
+    if (ru.role === 'siswa' && /[a-z]/.test(ru.name)) {
+      recordDeletedUserId(ru.id);
+      if (!isRemoteUpdating) supabaseDeleteUser(ru.id);
+      return;
+    }
     if (!deleted.has(ru.id)) {
       mergedMap.set(ru.id, ru);
     }
@@ -118,12 +104,17 @@ function mergeRemoteUsers(remoteUsers: User[]): User[] {
 
   // 2. Merge local users (if created locally and not yet synced)
   localUsers.forEach((lu) => {
+    if (lu.role === 'siswa' && /[a-z]/.test(lu.name)) {
+      recordDeletedUserId(lu.id);
+      if (!isRemoteUpdating) supabaseDeleteUser(lu.id);
+      return;
+    }
     if (!deleted.has(lu.id)) {
       if (!mergedMap.has(lu.id)) {
         mergedMap.set(lu.id, lu);
       } else {
         const ru = mergedMap.get(lu.id)!;
-        // Remote Cloud data (ru) takes precedence over stale local cache (lu)!
+        // Remote Cloud data (ru) takes precedence over stale local cache
         mergedMap.set(lu.id, { ...lu, ...ru });
       }
     }
@@ -151,7 +142,7 @@ function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
         mergedMap.set(ll.id, ll);
       } else {
         const rl = mergedMap.get(ll.id)!;
-        // Remote Cloud data (rl) takes precedence over stale local cache (ll)!
+        // Remote Cloud data (rl) takes precedence over stale local cache
         mergedMap.set(ll.id, { ...ll, ...rl });
       }
     }
@@ -197,128 +188,157 @@ function mergeRemoteBKNotes(remoteNotes: BKCounselingNote[]): BKCounselingNote[]
   return result;
 }
 
+function mergeRemotePasswords(remotePasswords: Record<string, string>) {
+  const localPasswords = getCustomPasswords();
+  const merged = { ...localPasswords, ...remotePasswords };
+  localStorage.setItem(KEYS.CUSTOM_PASSWORDS, JSON.stringify(merged));
+}
+
+// Force sync directly from Supabase Cloud
 export async function forceFetchFromCloud(): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
   try {
     isRemoteUpdating = true;
-    const [cloudUsers, cloudLogs, cloudConfig, cloudNotes] = await Promise.all([
-      fetchAllCloudUsers(),
-      fetchAllCloudLogs(),
-      fetchCloudSchoolConfig(),
-      fetchAllCloudBKNotes(),
+    const [cloudUsers, cloudLogs, cloudConfig, cloudNotes, cloudPasswords] = await Promise.all([
+      supabaseFetchUsers(),
+      supabaseFetchLogs(),
+      supabaseFetchSchoolConfig(),
+      supabaseFetchBKNotes(),
+      supabaseFetchCustomPasswords(),
     ]);
 
+    let changed = false;
     if (cloudUsers && cloudUsers.length > 0) {
       mergeRemoteUsers(cloudUsers);
+      changed = true;
+    } else {
+      // Seed initial users to Supabase if Supabase table is empty
+      const localUsers = getStoredUsers();
+      supabaseSaveUsers(localUsers);
     }
-    if (cloudLogs) {
+
+    if (cloudLogs && cloudLogs.length > 0) {
       mergeRemoteLogs(cloudLogs);
+      changed = true;
+    } else {
+      const localLogs = getStoredLogs();
+      if (localLogs.length > 0) supabaseSaveLogs(localLogs);
     }
+
     if (cloudConfig) {
       mergeRemoteSchoolConfig(cloudConfig);
+      changed = true;
+    } else {
+      const localConfig = getStoredSchoolConfig();
+      supabaseSaveSchoolConfig(localConfig);
     }
-    if (cloudNotes) {
+
+    if (cloudNotes && cloudNotes.length > 0) {
       mergeRemoteBKNotes(cloudNotes);
+      changed = true;
     }
+
+    if (cloudPasswords) {
+      mergeRemotePasswords(cloudPasswords);
+      changed = true;
+    }
+
     isRemoteUpdating = false;
     notifyDataChanged();
     return true;
   } catch (err) {
-    console.error('Failed to force sync from cloud:', err);
+    console.error('Failed to force sync from Supabase cloud:', err);
     isRemoteUpdating = false;
     return false;
   }
 }
 
-// Initialize Firebase & Supabase Synchronization across all devices
+// Initialize Supabase Synchronization across all devices
 let isInitialized = false;
 export async function initFirebaseRealtimeSync() {
   if (isInitialized) return;
   isInitialized = true;
 
-  // 0. If Supabase is configured, pull initial remote state from Supabase
-  if (isSupabaseConfigured) {
-    try {
-      const [spUsers, spLogs, spConfig, spBKNotes] = await Promise.all([
-        supabaseFetchUsers(),
-        supabaseFetchLogs(),
-        supabaseFetchSchoolConfig(),
-        supabaseFetchBKNotes(),
-      ]);
+  if (!isSupabaseConfigured) return;
 
-      isRemoteUpdating = true;
-      if (spUsers && spUsers.length > 0) mergeRemoteUsers(spUsers);
-      if (spLogs && spLogs.length > 0) mergeRemoteLogs(spLogs);
-      if (spConfig) mergeRemoteSchoolConfig(spConfig);
-      if (spBKNotes && spBKNotes.length > 0) mergeRemoteBKNotes(spBKNotes);
-      isRemoteUpdating = false;
-      notifyDataChanged();
-    } catch (err) {
-      console.warn('Initial Supabase fetch failed, falling back to local/Firebase storage:', err);
-    }
+  // 1. Initial Cloud Sync
+  await forceFetchFromCloud();
+
+  // 2. Realtime Subscription from Supabase
+  subscribeToSupabaseRealtime(() => {
+    forceFetchFromCloud();
+  });
+
+  // 3. Tab Focus & Visibility listener to instantly fetch latest data when device screen wakes or tab opens
+  if (typeof window !== 'undefined') {
+    window.addEventListener('focus', () => {
+      forceFetchFromCloud();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        forceFetchFromCloud();
+      }
+    });
+
+    // 4. Background auto-polling timer every 10 seconds for instant device cross-sync
+    setInterval(() => {
+      forceFetchFromCloud();
+    }, 10000);
   }
-
-  // 1. Subscribe to Users from Firestore
-  subscribeToUsers((remoteUsers) => {
-    if (remoteUsers && remoteUsers.length > 0) {
-      isRemoteUpdating = true;
-      mergeRemoteUsers(remoteUsers);
-      isRemoteUpdating = false;
-      notifyDataChanged();
-    }
-  });
-
-  // 2. Subscribe to Logs from Firestore
-  subscribeToLogs((remoteLogs) => {
-    if (remoteLogs) {
-      isRemoteUpdating = true;
-      mergeRemoteLogs(remoteLogs);
-      isRemoteUpdating = false;
-      notifyDataChanged();
-    }
-  });
-
-  // 3. Subscribe to School Config from Firestore
-  subscribeToSchoolConfig((remoteConfig) => {
-    if (remoteConfig) {
-      isRemoteUpdating = true;
-      mergeRemoteSchoolConfig(remoteConfig);
-      isRemoteUpdating = false;
-      notifyDataChanged();
-    }
-  });
-
-  // 4. Subscribe to Custom Passwords from Firestore
-  subscribeToPasswords((remotePasswords) => {
-    if (remotePasswords) {
-      isRemoteUpdating = true;
-      localStorage.setItem(KEYS.CUSTOM_PASSWORDS, JSON.stringify(remotePasswords));
-      isRemoteUpdating = false;
-      notifyDataChanged();
-    }
-  });
-
-  // 5. Subscribe to BK Notes from Firestore
-  subscribeToBKNotes((remoteNotes) => {
-    if (remoteNotes) {
-      isRemoteUpdating = true;
-      mergeRemoteBKNotes(remoteNotes);
-      isRemoteUpdating = false;
-      notifyDataChanged();
-    }
-  });
 }
 
+export const initRealtimeSync = initFirebaseRealtimeSync;
 
-// Local storage helpers & Firebase sync triggers
+// Local storage helpers & Supabase sync triggers
 export function getStoredUsers(): User[] {
   try {
     const data = localStorage.getItem(KEYS.USERS);
+    let parsed: User[] = [];
     if (!data) {
-      const allInitial = [...INITIAL_ADMINS, ...INITIAL_GURU_BK, ...INITIAL_WALI_KELAS, ...INITIAL_STUDENTS];
-      localStorage.setItem(KEYS.USERS, JSON.stringify(allInitial));
-      return allInitial;
+      parsed = [...INITIAL_ADMINS, ...INITIAL_GURU_BK, ...INITIAL_WALI_KELAS, ...INITIAL_STUDENTS];
+    } else {
+      parsed = JSON.parse(data);
     }
-    return JSON.parse(data);
+
+    let modified = false;
+    const filtered: User[] = [];
+
+    parsed.forEach((u) => {
+      // Discard sample students with lowercase names
+      if (u.role === 'siswa' && /[a-z]/.test(u.name)) {
+        modified = true;
+        recordDeletedUserId(u.id);
+        if (!isRemoteUpdating) {
+          supabaseDeleteUser(u.id);
+        }
+        return;
+      }
+
+      const initAdmin = INITIAL_ADMINS.find((a) => a.id === u.id);
+      if (initAdmin && (u.username !== initAdmin.username || u.name !== initAdmin.name)) {
+        modified = true;
+        filtered.push({ ...u, username: initAdmin.username, name: initAdmin.name, adminTitle: initAdmin.adminTitle });
+        return;
+      }
+
+      const initBK = INITIAL_GURU_BK.find((b) => b.id === u.id);
+      if (initBK && (u.username !== initBK.username || u.name !== initBK.name)) {
+        modified = true;
+        filtered.push({ ...u, username: initBK.username, name: initBK.name });
+        return;
+      }
+
+      filtered.push(u);
+    });
+
+    if (modified) {
+      localStorage.setItem(KEYS.USERS, JSON.stringify(filtered));
+      if (!isRemoteUpdating) {
+        supabaseSaveUsers(filtered.filter(u => u.id.startsWith('adm-') || u.id.startsWith('bk-')));
+      }
+    }
+
+    return filtered;
   } catch (e) {
     console.error('Failed to read users from localStorage:', e);
     return [...INITIAL_ADMINS, ...INITIAL_GURU_BK, ...INITIAL_WALI_KELAS, ...INITIAL_STUDENTS];
@@ -338,7 +358,7 @@ export function saveStoredUsers(users: User[]): void {
   const deletedSet = getDeletedUserIds();
   const validUsers = users.filter((u) => !deletedSet.has(u.id));
 
-  // Identify new or modified users only to conserve Firestore write quota
+  // Identify new or modified users
   const changedOrNewUsers = validUsers.filter((u) => {
     const prev = previousUsers.find((p) => p.id === u.id);
     return !prev || JSON.stringify(prev) !== JSON.stringify(u);
@@ -349,12 +369,9 @@ export function saveStoredUsers(users: User[]): void {
 
   if (!isRemoteUpdating) {
     if (changedOrNewUsers.length > 0) {
-      syncSaveUsers(changedOrNewUsers);
       supabaseSaveUsers(changedOrNewUsers);
     }
     deletedIds.forEach((id) => {
-      syncDeleteUser(id);
-      syncDeletePassword(id);
       supabaseDeleteUser(id);
     });
   }
@@ -376,7 +393,6 @@ export function saveSingleUser(user: User): void {
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    syncSaveSingleUser(user);
     supabaseSaveUsers([user]);
   }
 }
@@ -422,7 +438,6 @@ export function saveStoredLogs(logs: KAIHEntry[]): void {
   notifyDataChanged();
 
   if (!isRemoteUpdating && changedOrNewLogs.length > 0) {
-    syncSaveLogs(changedOrNewLogs);
     supabaseSaveLogs(changedOrNewLogs);
   }
 }
@@ -442,7 +457,6 @@ export function addOrUpdateLog(entry: KAIHEntry): KAIHEntry[] {
   localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    syncAddLog(entry);
     supabaseSaveLogs([entry]);
   }
   return logs;
@@ -461,7 +475,6 @@ export function saveStoredSchoolConfig(config: MonthlyReportConfig): void {
   localStorage.setItem(KEYS.SCHOOL_CONFIG, JSON.stringify(config));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    syncSaveSchoolConfig(config);
     supabaseSaveSchoolConfig(config);
   }
 }
@@ -481,7 +494,6 @@ export function saveBKNote(note: BKCounselingNote): BKCounselingNote[] {
   localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(notes));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    syncSaveBKNote(note);
     supabaseSaveBKNotes(notes as any);
   }
   return notes;
@@ -540,7 +552,7 @@ export function saveCustomPassword(userId: string, newPass: string): void {
   localStorage.setItem(KEYS.CUSTOM_PASSWORDS, JSON.stringify(map));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    syncSaveCustomPassword(userId, newPass);
+    supabaseSaveCustomPassword(userId, newPass);
   }
 }
 
@@ -616,7 +628,7 @@ export function importFullBackupJSON(jsonText: string): RestoreResult {
     let bkNotesRestored = 0;
     let hasSchoolConfig = false;
 
-    // 1. Restore School Config (Includes Logo, Stempel, Kop Surat, Identitas Sekolah)
+    // 1. Restore School Config
     if (data.schoolConfig && typeof data.schoolConfig === 'object') {
       saveStoredSchoolConfig(data.schoolConfig);
       hasSchoolConfig = true;
@@ -634,7 +646,7 @@ export function importFullBackupJSON(jsonText: string): RestoreResult {
       if (!isRemoteUpdating) {
         Object.entries(data.customPasswords).forEach(([uid, pass]) => {
           if (typeof pass === 'string') {
-            syncSaveCustomPassword(uid, pass);
+            supabaseSaveCustomPassword(uid, pass);
           }
         });
       }
@@ -651,11 +663,7 @@ export function importFullBackupJSON(jsonText: string): RestoreResult {
       localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(data.bkNotes));
       bkNotesRestored = data.bkNotes.length;
       if (!isRemoteUpdating) {
-        data.bkNotes.forEach((note: BKCounselingNote) => {
-          if (note && note.id) {
-            syncSaveBKNote(note);
-          }
-        });
+        supabaseSaveBKNotes(data.bkNotes as any);
       }
     }
 
@@ -663,7 +671,7 @@ export function importFullBackupJSON(jsonText: string): RestoreResult {
 
     return {
       success: true,
-      message: 'Restorasi data berhasil disinkronkan ke sistem dan Cloud Firestore!',
+      message: 'Restorasi data berhasil disinkronkan ke sistem dan Supabase Cloud!',
       stats: {
         usersCount: usersRestored,
         logsCount: logsRestored,
@@ -676,4 +684,3 @@ export function importFullBackupJSON(jsonText: string): RestoreResult {
     return { success: false, message: `Gagal membaca file backup: ${error?.message || 'Format JSON rusak.'}` };
   }
 }
-

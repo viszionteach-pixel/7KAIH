@@ -23,24 +23,24 @@ export const INITIAL_SCHOOL_CONFIG: MonthlyReportConfig = {
 export const INITIAL_ADMINS: User[] = [
   {
     id: 'adm-1',
-    username: 'admin.utama',
-    name: 'Drs. Bambang Hariyanto, M.Si',
+    username: 'admin1',
+    name: 'Admin 1',
     role: 'admin',
-    adminTitle: 'Admin Utama (Konsol 1)',
+    adminTitle: 'Admin 1 (Utama)',
   },
   {
     id: 'adm-2',
-    username: 'admin.kesiswaan',
-    name: 'Dra. Hj. Nurul Hidayah',
+    username: 'admin2',
+    name: 'Admin 2',
     role: 'admin',
-    adminTitle: 'Admin Kesiswaan (Konsol 2)',
+    adminTitle: 'Admin 2 (Kesiswaan)',
   },
   {
     id: 'adm-3',
-    username: 'admin.it',
-    name: 'Rahmat Hidayat, S.Pd., M.T.',
+    username: 'admin3',
+    name: 'Admin 3',
     role: 'admin',
-    adminTitle: 'Admin IT & Data (Konsol 3)',
+    adminTitle: 'Admin 3 (IT)',
   },
 ];
 
@@ -48,14 +48,14 @@ export const INITIAL_ADMINS: User[] = [
 export const INITIAL_GURU_BK: User[] = [
   {
     id: 'bk-1',
-    username: 'gurubk.utama',
-    name: 'Siti Aminah, S.Pd., M.Psi.',
+    username: 'gurubk1',
+    name: 'Guru BK 1',
     role: 'guru_bk',
   },
   {
     id: 'bk-2',
-    username: 'gurubk.dewi',
-    name: 'Dewi Lestari, S.Psi.',
+    username: 'gurubk2',
+    name: 'Guru BK 2',
     role: 'guru_bk',
   },
 ];
@@ -81,34 +81,8 @@ export const INITIAL_WALI_KELAS: User[] = ALL_CLASSES.map((cls, idx) => {
   };
 });
 
-// Sample Students
-export const INITIAL_STUDENTS: User[] = [
-  // 7A Students
-  { id: 'std-7a-1', username: 'Ahmad Fauzi', name: 'Ahmad Fauzi', role: 'siswa', assignedClass: '7A', agama: 'Islam' },
-  { id: 'std-7a-2', username: 'Siti Nurhaliza', name: 'Siti Nurhaliza', role: 'siswa', assignedClass: '7A', agama: 'Islam' },
-  { id: 'std-7a-3', username: 'Daniel Christian', name: 'Daniel Christian', role: 'siswa', assignedClass: '7A', agama: 'Kristen' },
-  { id: 'std-7a-4', username: 'Budi Kurniawan', name: 'Budi Kurniawan', role: 'siswa', assignedClass: '7A', agama: 'Islam' },
-  { id: 'std-7a-5', username: 'Maria Yosefina', name: 'Maria Yosefina', role: 'siswa', assignedClass: '7A', agama: 'Katolik' },
-  { id: 'std-7a-6', username: 'Putu Wijaya', name: 'Putu Wijaya', role: 'siswa', assignedClass: '7A', agama: 'Hindu' },
-  
-  // 7B Students
-  { id: 'std-7b-1', username: 'Rian Ardianto', name: 'Rian Ardianto', role: 'siswa', assignedClass: '7B', agama: 'Islam' },
-  { id: 'std-7b-2', username: 'Clarissa Maharani', name: 'Clarissa Maharani', role: 'siswa', assignedClass: '7B', agama: 'Kristen' },
-
-  // 8A Students
-  { id: 'std-8a-1', username: 'Muhammad Rizky', name: 'Muhammad Rizky', role: 'siswa', assignedClass: '8A', agama: 'Islam' },
-  { id: 'std-8a-2', username: 'Anisa Rahmawati', name: 'Anisa Rahmawati', role: 'siswa', assignedClass: '8A', agama: 'Islam' },
-
-  // 8B Students
-  { id: 'std-8b-1', username: 'Kevin Sanjaya', name: 'Kevin Sanjaya', role: 'siswa', assignedClass: '8B', agama: 'Kristen' },
-  
-  // 9A Students
-  { id: 'std-9a-1', username: 'Fajar Alfian', name: 'Fajar Alfian', role: 'siswa', assignedClass: '9A', agama: 'Islam' },
-  { id: 'std-9a-2', username: 'Nabila Syakieb', name: 'Nabila Syakieb', role: 'siswa', assignedClass: '9A', agama: 'Islam' },
-  
-  // 9J Students
-  { id: 'std-9j-1', username: 'Zidane Iqbal', name: 'Zidane Iqbal', role: 'siswa', assignedClass: '9J', agama: 'Islam' },
-];
+// Sample Students (Cleared - only CAPITAL LETTER real student data is retained)
+export const INITIAL_STUDENTS: User[] = [];
 
 // Helper to generate seed logs for past 10 days
 function generateSeedLogs(): KAIHEntry[] {

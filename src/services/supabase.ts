@@ -215,3 +215,58 @@ export async function supabaseFetchBKNotes(): Promise<BKCounselingNote[] | null>
     return null;
   }
 }
+
+// ================= CUSTOM PASSWORDS =================
+export async function supabaseSaveCustomPassword(userId: string, pass: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const payload = {
+      id: userId,
+      password: pass,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('custom_passwords').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      handleSupabaseError(error, 'Save Custom Password');
+      return false;
+    }
+    return true;
+  } catch (err) {
+    handleSupabaseError(err, 'Save Custom Password');
+    return false;
+  }
+}
+
+export async function supabaseFetchCustomPasswords(): Promise<Record<string, string> | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase.from('custom_passwords').select('*');
+    if (error || !data) return null;
+    const map: Record<string, string> = {};
+    data.forEach((row) => {
+      if (row.id && row.password) {
+        map[row.id] = row.password;
+      }
+    });
+    return map;
+  } catch {
+    return null;
+  }
+}
+
+// ================= REALTIME SUBSCRIPTIONS =================
+export function subscribeToSupabaseRealtime(onDataChanged: () => void) {
+  if (!supabase) return () => {};
+
+  const channel = supabase
+    .channel('kaih-supabase-changes')
+    .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+      onDataChanged();
+    })
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+

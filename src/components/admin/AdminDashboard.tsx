@@ -111,7 +111,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     setSaveSuccessNotification(msg);
     setLastActionInfo(null);
 
-    alert('✓ Berhasil menyimpan seluruh perubahan data (akun & konfigurasi) ke Cloud Firestore dan memori lokal!');
+    alert('✓ Berhasil menyimpan seluruh perubahan data (akun & konfigurasi) ke Supabase Cloud Database dan memori lokal!');
 
     setTimeout(() => {
       setSaveSuccessNotification(null);
@@ -516,7 +516,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                 ? lastActionInfo
                   ? `Perubahan Terakhir: ${lastActionInfo}. Pastikan mengeklik tombol "Simpan Perubahan Sekarang" agar tersimpan permanen.`
                   : 'Data telah berubah. Silakan klik tombol Simpan di sebelah kanan.'
-                : saveSuccessNotification || 'Data disinkronkan secara realtime dengan database Cloud Firestore & penyimpanan browser.'}
+                : saveSuccessNotification || 'Data disinkronkan secara realtime dengan Supabase Cloud Database & penyimpanan browser.'}
             </p>
           </div>
         </div>
@@ -1218,14 +1218,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-extrabold mb-2">
               <CloudCheck className="w-4 h-4 text-emerald-600" />
-              Sinkronisasi Cloud Firestore Otomatis Active
+              Sinkronisasi Supabase Cloud Database Otomatis Active
             </div>
             <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
               <Database className="w-6 h-6 text-rose-600" />
               Pusat Backup & Pemulihan Data Menyeluruh
             </h3>
             <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-              Semua data sistem (pengguna, identitas & logo sekolah, password kustom, log pembiasaan KAIH, dan catatan BK) tersimpan di Cloud Database Firestore sehingga <strong>aman dari update webapp, redeploy server, maupun pembersihan memori browser</strong>.
+              Semua data sistem (pengguna, identitas & logo sekolah, password kustom, log pembiasaan KAIH, dan catatan BK) tersimpan di Supabase Cloud Database sehingga <strong>aman dari update webapp, redeploy server, maupun pembersihan memori browser</strong>.
             </p>
           </div>
 
@@ -1287,7 +1287,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                   Unggah file cadangan JSON yang pernah diunduh sebelumnya untuk mengembalikan seluruh identitas sekolah, logo, akun, dan riwayat presensi secara otomatis.
                 </p>
                 <p className="text-[11px] text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                  ✓ Data restored langsung disinkronkan ke Cloud Firestore.
+                  ✓ Data restored langsung disinkronkan ke Supabase Cloud Database.
                 </p>
               </div>
 

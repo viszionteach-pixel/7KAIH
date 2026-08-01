@@ -27,7 +27,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     const success = await forceFetchFromCloud();
     setIsSyncing(false);
     if (success) {
-      setSyncToast('✓ Data berhasil disinkronkan langsung dari Cloud Firestore!');
+      setSyncToast('✓ Data berhasil disinkronkan langsung dari Supabase Cloud!');
     } else {
       setSyncToast('⚠️ Sinkronisasi Cloud selesai (mode offline/local).');
     }
@@ -110,7 +110,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={handleManualSync}
             disabled={isSyncing}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700/80 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg border border-emerald-500/50 shadow-sm transition-all disabled:opacity-50"
-            title="Sinkronkan Data Terbaru Langsung dari Cloud Firestore"
+            title="Sinkronkan Data Terbaru Langsung dari Supabase Cloud"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan Cloud'}</span>

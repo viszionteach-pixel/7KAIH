@@ -177,9 +177,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onOpenAb
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder={
                       activeTab === 'admin'
-                        ? 'Contoh: admin.utama atau kepalasekolah'
+                        ? 'Contoh: admin1 atau admin2'
                         : activeTab === 'guru'
-                        ? 'Contoh: walikelas.7a atau gurubk.utama'
+                        ? 'Contoh: walikelas.7a atau gurubk1'
                         : 'Contoh: Ahmad Fauzi'
                     }
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-600 focus:bg-white outline-none transition-all"
@@ -241,27 +241,27 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onOpenAb
               {/* If unlocked, ONLY show Admin/Kepala Sekolah & Staff buttons */}
               {isAdminUnlocked ? (
                 <>
-                  {/* Admins & Kepala Sekolah */}
-                  {users.filter(u => u.role === 'admin').slice(0, 3).map((u, i) => (
+                  {/* Admins */}
+                  {users.filter(u => u.role === 'admin').slice(0, 3).map((u) => (
                     <button
                       key={u.id}
                       type="button"
                       onClick={() => handleQuickLogin(u)}
                       className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 text-[10px] font-bold rounded-lg transition-colors"
                     >
-                      {u.adminTitle?.includes('Kepala Sekolah') ? 'Kepala Sekolah' : `Kepala Sekolah / Admin #${i+1}`} ({u.username})
+                      {u.name} ({u.username})
                     </button>
                   ))}
 
                   {/* Guru BK */}
-                  {users.filter(u => u.role === 'guru_bk').slice(0, 1).map((u) => (
+                  {users.filter(u => u.role === 'guru_bk').slice(0, 2).map((u) => (
                     <button
                       key={u.id}
                       type="button"
                       onClick={() => handleQuickLogin(u)}
                       className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-[10px] font-bold rounded-lg transition-colors"
                     >
-                      Guru BK
+                      {u.name} ({u.username})
                     </button>
                   ))}
 
