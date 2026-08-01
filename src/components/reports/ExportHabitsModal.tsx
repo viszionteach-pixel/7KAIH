@@ -302,24 +302,30 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
           `}</style>
 
           {/* Kop Surat Header */}
-          <div className="relative border-b-4 border-slate-900 pb-3 mb-6 min-h-[90px] flex items-center justify-center">
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center">
+          <div className="border-b-4 border-slate-900 pb-3 mb-6 flex items-center justify-between gap-2">
+            {/* Left Logo */}
+            <div className="w-16 sm:w-20 shrink-0 flex justify-start">
               <SchoolLogo customLogoUrl={schoolConfig.logoUrl} size="lg" className="shrink-0 w-16 h-16 sm:w-20 sm:h-20" />
             </div>
-            <div className="text-center w-full px-20">
-              <h4 className="text-xs font-extrabold uppercase tracking-widest text-slate-700">
+
+            {/* Center Text */}
+            <div className="text-center flex-1 px-2">
+              <h4 className="text-xs font-extrabold uppercase tracking-widest text-slate-700 leading-tight">
                 PEMERINTAH KOTA BALIKPAPAN
               </h4>
-              <h3 className="text-sm font-black uppercase text-slate-900">
+              <h3 className="text-sm font-black uppercase text-slate-900 leading-tight">
                 DINAS PENDIDIKAN DAN KEBUDAYAAN
               </h3>
-              <h2 className="text-lg sm:text-xl font-black uppercase text-blue-900 tracking-tight">
+              <h2 className="text-base sm:text-lg font-black uppercase text-blue-900 tracking-tight leading-tight">
                 {schoolConfig.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN'}
               </h2>
-              <p className="text-[10px] text-slate-600 mt-0.5 max-w-xl mx-auto leading-tight">
+              <p className="text-[10px] text-slate-600 mt-0.5 leading-tight">
                 {schoolConfig.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur'}
               </p>
             </div>
+
+            {/* Right Spacer (Balancing Logo width for perfect center alignment) */}
+            <div className="w-16 sm:w-20 shrink-0" aria-hidden="true" />
           </div>
 
           {/* Document Title */}
