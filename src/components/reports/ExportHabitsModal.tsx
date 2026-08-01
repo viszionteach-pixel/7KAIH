@@ -321,14 +321,18 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
                 background: white !important;
                 box-shadow: none !important;
                 border: none !important;
-                font-size: 8px !important;
+                font-size: 9.5px !important;
+                line-height: 1.2 !important;
+              }
+              .printable-paper-canvas table th {
+                padding: 3px 4px !important;
+                font-size: 9px !important;
                 line-height: 1.15 !important;
               }
-              .printable-paper-canvas table th,
               .printable-paper-canvas table td {
-                padding: 1.5px 3px !important;
-                font-size: 8px !important;
-                line-height: 1.1 !important;
+                padding: 2.2px 4px !important;
+                font-size: 9px !important;
+                line-height: 1.15 !important;
               }
               .printable-paper-canvas .print\\:hidden {
                 display: none !important;
