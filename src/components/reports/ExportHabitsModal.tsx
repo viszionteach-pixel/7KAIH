@@ -284,12 +284,12 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
         </div>
 
         {/* Print Printable Canvas */}
-        <div ref={printRef} className="p-8 sm:p-10 bg-white text-slate-900 font-sans print:p-0 print:m-0 print:w-full">
+        <div ref={printRef} className="printable-paper-canvas p-8 sm:p-10 bg-white text-slate-900 font-sans print:p-0 print:m-0 print:w-full">
           <style>{`
             @media print {
               @page {
                 size: A4 portrait;
-                margin: 6mm 8mm;
+                margin: 5mm 6mm;
               }
               html, body {
                 background: white !important;
@@ -298,8 +298,30 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
                 print-color-adjust: exact !important;
                 margin: 0 !important;
                 padding: 0 !important;
+                height: auto !important;
+                overflow: visible !important;
               }
-              .print\\:hidden {
+              /* Hide all background dashboard elements outside the print canvas */
+              body * {
+                visibility: hidden !important;
+              }
+              /* Show ONLY the printable canvas and its child elements */
+              .printable-paper-canvas,
+              .printable-paper-canvas * {
+                visibility: visible !important;
+              }
+              .printable-paper-canvas {
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+                box-shadow: none !important;
+                border: none !important;
+              }
+              .printable-paper-canvas .print\\:hidden {
                 display: none !important;
               }
               tr {
@@ -314,24 +336,24 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
           `}</style>
 
           {/* Kop Surat Header */}
-          <div className="border-b-4 border-slate-900 pb-2 mb-3 print:pb-1.5 print:mb-2 print:border-b-2 flex items-center justify-between gap-2">
+          <div className="border-b-4 border-slate-900 pb-1.5 mb-2 print:pb-1 print:mb-1.5 print:border-b-2 flex items-center justify-between gap-2">
             {/* Left Logo */}
             <div className="w-16 sm:w-20 shrink-0 flex justify-start">
-              <SchoolLogo customLogoUrl={schoolConfig.logoUrl} size="lg" className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 print:w-12 print:h-12" />
+              <SchoolLogo customLogoUrl={schoolConfig.logoUrl} size="lg" className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 print:w-10 print:h-10" />
             </div>
 
             {/* Center Text */}
             <div className="text-center flex-1 px-2">
-              <h4 className="text-xs print:text-[9px] font-extrabold uppercase tracking-widest text-slate-700 leading-tight">
+              <h4 className="text-xs print:text-[8px] font-extrabold uppercase tracking-widest text-slate-700 leading-tight">
                 PEMERINTAH KOTA BALIKPAPAN
               </h4>
-              <h3 className="text-sm print:text-[11px] font-black uppercase text-slate-900 leading-tight">
+              <h3 className="text-sm print:text-[10px] font-black uppercase text-slate-900 leading-tight">
                 DINAS PENDIDIKAN DAN KEBUDAYAAN
               </h3>
-              <h2 className="text-base sm:text-lg print:text-[13px] font-black uppercase text-blue-900 tracking-tight leading-tight">
+              <h2 className="text-base sm:text-lg print:text-[12px] font-black uppercase text-blue-900 tracking-tight leading-tight">
                 {schoolConfig.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN'}
               </h2>
-              <p className="text-[10px] print:text-[8px] text-slate-600 mt-0.5 leading-tight">
+              <p className="text-[10px] print:text-[7.5px] text-slate-600 mt-0.5 leading-tight">
                 {schoolConfig.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur'}
               </p>
             </div>
@@ -341,28 +363,28 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
           </div>
 
           {/* Document Title */}
-          <div className="text-center mb-3 print:mb-2">
-            <h2 className="text-sm sm:text-base print:text-[12px] font-extrabold text-slate-900 uppercase tracking-wide leading-tight">
+          <div className="text-center mb-2 print:mb-1.5">
+            <h2 className="text-sm sm:text-base print:text-[11px] font-extrabold text-slate-900 uppercase tracking-wide leading-tight">
               REKAPITULASI MONITORAING 7 KEBIASAAN ANAK INDONESIA HEBAT (KAIH)
             </h2>
-            <p className="text-xs print:text-[9.5px] font-bold text-slate-600 uppercase mt-0.5">
+            <p className="text-xs print:text-[8.5px] font-bold text-slate-600 uppercase mt-0.5">
               PERIODE: {monthName} {selectedYear} • KELAS: {selectedClass === 'ALL' ? 'SEMUA KELAS' : `KELAS ${selectedClass}`}
             </p>
           </div>
 
           {/* Executive Stats Summary */}
-          <div className="grid grid-cols-3 gap-2 mb-3 p-2.5 print:p-1.5 print:mb-2 bg-slate-50 border border-slate-300 rounded-xl text-xs print:text-[9px]">
+          <div className="grid grid-cols-3 gap-2 mb-2 p-2 print:p-1 print:mb-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs print:text-[8px] print:rounded-md">
             <div>
-              <span className="text-slate-500 block font-semibold text-[10px] print:text-[8px]">Total Siswa Terdaftar:</span>
-              <strong className="text-sm print:text-[10px] text-slate-900">{students.length} Siswa</strong>
+              <span className="text-slate-500 block font-semibold text-[10px] print:text-[7.5px]">Total Siswa Terdaftar:</span>
+              <strong className="text-sm print:text-[9.5px] text-slate-900">{students.length} Siswa</strong>
             </div>
             <div>
-              <span className="text-slate-500 block font-semibold text-[10px] print:text-[8px]">Total Presensi Terisi:</span>
-              <strong className="text-sm print:text-[10px] text-blue-700">{monthLogs.length} Log Presensi</strong>
+              <span className="text-slate-500 block font-semibold text-[10px] print:text-[7.5px]">Total Presensi Terisi:</span>
+              <strong className="text-sm print:text-[9.5px] text-blue-700">{monthLogs.length} Log Presensi</strong>
             </div>
             <div>
-              <span className="text-slate-500 block font-semibold text-[10px] print:text-[8px]">Rata-rata Capaian KAIH:</span>
-              <strong className="text-sm print:text-[10px] text-emerald-700">
+              <span className="text-slate-500 block font-semibold text-[10px] print:text-[7.5px]">Rata-rata Capaian KAIH:</span>
+              <strong className="text-sm print:text-[9.5px] text-emerald-700">
                 {studentSummaries.length > 0
                   ? Math.round(studentSummaries.reduce((acc, s) => acc + s.avgPercentage, 0) / studentSummaries.length)
                   : 0}%
@@ -372,17 +394,17 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
 
           {/* Table */}
           {reportMode === 'SUMMARY' ? (
-            <table className="w-full text-xs print:text-[8px] border-collapse border border-slate-400 mb-4 print:mb-2">
+            <table className="w-full text-xs print:text-[7.5px] border-collapse border border-slate-400 mb-3 print:mb-1.5">
               <thead>
                 <tr className="bg-slate-800 text-white font-bold uppercase text-center">
-                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-1 w-8">No</th>
-                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-1 text-left">Nama Siswa</th>
-                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-1 w-12">Kelas</th>
-                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-1 w-16">Agama</th>
-                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-1 w-20">Hari Mengisi</th>
-                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-1 w-20">Total KAIH</th>
-                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-1 w-20">Capaian (%)</th>
-                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-1 w-28">Predikat</th>
+                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-0.5 w-6">No</th>
+                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-0.5 text-left">Nama Siswa</th>
+                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-0.5 w-10">Kelas</th>
+                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-0.5 w-14">Agama</th>
+                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-0.5 w-16">Hari Mengisi</th>
+                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-0.5 w-16">Total KAIH</th>
+                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-0.5 w-16">Capaian (%)</th>
+                  <th className="border border-slate-400 p-1.5 print:py-0.5 print:px-0.5 w-24">Predikat</th>
                 </tr>
               </thead>
               <tbody>
@@ -395,27 +417,27 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
                 ) : (
                   studentSummaries.map((s, idx) => (
                     <tr key={s.student.id} className={idx % 2 === 0 ? 'bg-slate-50' : 'bg-white'}>
-                      <td className="border border-slate-300 p-1.5 print:py-0.5 print:px-1 text-center font-bold">{idx + 1}</td>
-                      <td className="border border-slate-300 p-1.5 print:py-0.5 print:px-1 font-bold text-slate-900">{s.student.name}</td>
-                      <td className="border border-slate-300 p-1.5 print:py-0.5 print:px-1 text-center font-semibold">{s.student.assignedClass || '-'}</td>
-                      <td className="border border-slate-300 p-1.5 print:py-0.5 print:px-1 text-center">{s.student.agama || 'Islam'}</td>
-                      <td className="border border-slate-300 p-1.5 print:py-0.5 print:px-1 text-center font-bold">{s.filledDays}/{daysInMonth} Hari</td>
-                      <td className="border border-slate-300 p-1.5 print:py-0.5 print:px-1 text-center">{s.totalCompleted}</td>
-                      <td className="border border-slate-300 p-1.5 print:py-0.5 print:px-1 text-center font-extrabold text-blue-800">{s.avgPercentage}%</td>
-                      <td className="border border-slate-300 p-1.5 print:py-0.5 print:px-1 text-center font-bold text-slate-800">{s.predicate}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1px] print:px-0.5 text-center font-bold">{idx + 1}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1px] print:px-0.5 font-bold text-slate-900">{s.student.name}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1px] print:px-0.5 text-center font-semibold">{s.student.assignedClass || '-'}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1px] print:px-0.5 text-center">{s.student.agama || 'Islam'}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1px] print:px-0.5 text-center font-bold">{s.filledDays}/{daysInMonth} Hari</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1px] print:px-0.5 text-center">{s.totalCompleted}</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1px] print:px-0.5 text-center font-extrabold text-blue-800">{s.avgPercentage}%</td>
+                      <td className="border border-slate-300 p-1.5 print:py-[1px] print:px-0.5 text-center font-bold text-slate-800">{s.predicate}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
           ) : (
-            <table className="w-full text-[10px] print:text-[7.5px] border-collapse border border-slate-400 mb-4 print:mb-2">
+            <table className="w-full text-[10px] print:text-[7px] border-collapse border border-slate-400 mb-3 print:mb-1.5">
               <thead>
                 <tr className="bg-slate-800 text-white font-bold uppercase text-center">
                   <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5 w-6">No</th>
-                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5 w-16">Tanggal</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5 w-14">Tanggal</th>
                   <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5 text-left">Nama Siswa</th>
-                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5 w-10">Kelas</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5 w-8">Kelas</th>
                   <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Bangun Pagi</th>
                   <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Beribadah</th>
                   <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Berolahraga</th>
@@ -423,7 +445,7 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
                   <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Gemar Belajar</th>
                   <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Bermasyarakat</th>
                   <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5">Tidur Cepat</th>
-                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5 w-10">Skor %</th>
+                  <th className="border border-slate-400 p-1 print:py-0.5 print:px-0.5 w-8">Skor %</th>
                 </tr>
               </thead>
               <tbody>
@@ -438,18 +460,18 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
                     const st = students.find((s) => s.id === l.studentId);
                     return (
                       <tr key={l.id} className={idx % 2 === 0 ? 'bg-slate-50' : 'bg-white'}>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 text-center font-bold">{idx + 1}</td>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 text-center font-mono">{l.date}</td>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 font-bold text-slate-900">{st ? st.name : '-'}</td>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 text-center">{st?.assignedClass || '-'}</td>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 text-center">{l.bangunPagi?.checked ? '✓' : '-'}</td>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 text-center">{l.beribadah?.checked ? '✓' : '-'}</td>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 text-center">{l.berolahraga?.checked ? '✓' : '-'}</td>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 text-center">{l.makanSehat?.checked ? '✓' : '-'}</td>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 text-center">{l.gemarBelajar?.checked ? '✓' : '-'}</td>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 text-center">{l.bermasyarakat?.checked ? '✓' : '-'}</td>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 text-center">{l.tidurCepat?.checked ? '✓' : '-'}</td>
-                        <td className="border border-slate-300 p-1 print:py-0.5 print:px-0.5 text-center font-bold">{l.scorePercentage}%</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 text-center font-bold">{idx + 1}</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 text-center font-mono">{l.date}</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 font-bold text-slate-900">{st ? st.name : '-'}</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 text-center">{st?.assignedClass || '-'}</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 text-center">{l.bangunPagi?.checked ? '✓' : '-'}</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 text-center">{l.beribadah?.checked ? '✓' : '-'}</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 text-center">{l.berolahraga?.checked ? '✓' : '-'}</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 text-center">{l.makanSehat?.checked ? '✓' : '-'}</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 text-center">{l.gemarBelajar?.checked ? '✓' : '-'}</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 text-center">{l.bermasyarakat?.checked ? '✓' : '-'}</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 text-center">{l.tidurCepat?.checked ? '✓' : '-'}</td>
+                        <td className="border border-slate-300 p-1 print:py-[1px] print:px-0.5 text-center font-bold">{l.scorePercentage}%</td>
                       </tr>
                     );
                   })
@@ -459,37 +481,37 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
           )}
 
           {/* Signatures */}
-          <div className="signature-block pt-3 print:pt-2 border-t border-slate-300 flex items-start justify-between text-xs print:text-[9.5px] leading-tight">
-            <div className="text-center w-52 print:w-48">
+          <div className="signature-block pt-2 print:pt-1 border-t border-slate-300 flex items-start justify-between text-xs print:text-[8.5px] leading-tight">
+            <div className="text-center w-52 print:w-44">
               <p className="text-slate-600 mb-0.5">Mengetahui,</p>
               <p className="font-bold text-slate-800">
                 {selectedClass !== 'ALL' ? `Wali Kelas ${selectedClass}` : 'Penanggung Jawab KAIH'}
               </p>
-              <div className="h-14 print:h-10 flex items-center justify-center my-1">
-                <span className="text-[10px] print:text-[8px] text-slate-400 italic">[ Tanda Tangan ]</span>
+              <div className="h-12 print:h-7 flex items-center justify-center my-0.5">
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 italic">[ Tanda Tangan ]</span>
               </div>
               <p className="font-bold text-slate-900 underline">
                 {schoolConfig.namaWaliKelas || currentUser.name}
               </p>
-              <p className="text-[10px] print:text-[8px] text-slate-500">NIP. {schoolConfig.nipWaliKelas || '19750814 200212 2 003'}</p>
+              <p className="text-[10px] print:text-[7.5px] text-slate-500">NIP. {schoolConfig.nipWaliKelas || '19750814 200212 2 003'}</p>
             </div>
 
-            <div className="text-center w-60 print:w-56">
+            <div className="text-center w-60 print:w-52">
               <p className="text-slate-600 mb-0.5">Balikpapan, {daysInMonth} {monthName} {selectedYear}</p>
               <p className="font-bold text-slate-800">Kepala {schoolConfig.namaSekolah || 'SMP Negeri 10 Balikpapan'}</p>
-              <div className="h-14 print:h-10 flex items-center justify-center my-1 relative">
+              <div className="h-12 print:h-7 flex items-center justify-center my-0.5 relative">
                 {schoolConfig.stempelUrl ? (
                   <img
                     src={schoolConfig.stempelUrl}
                     alt="Stempel Resmi Sekolah"
-                    className="max-h-12 print:max-h-9 max-w-full object-contain drop-shadow-sm opacity-90"
+                    className="max-h-10 print:max-h-7 max-w-full object-contain drop-shadow-sm opacity-90"
                   />
                 ) : (
-                  <span className="text-[10px] print:text-[8px] text-slate-400 italic">[ Tanda Tangan & Stempel Resmi ]</span>
+                  <span className="text-[10px] print:text-[7.5px] text-slate-400 italic">[ Tanda Tangan & Stempel Resmi ]</span>
                 )}
               </div>
               <p className="font-bold text-slate-900 underline">{schoolConfig.namaKepalaSekolah}</p>
-              <p className="text-[10px] print:text-[8px] text-slate-500">NIP. {schoolConfig.nipKepalaSekolah || '19680512 199403 1 005'}</p>
+              <p className="text-[10px] print:text-[7.5px] text-slate-500">NIP. {schoolConfig.nipKepalaSekolah || '19680512 199403 1 005'}</p>
             </div>
           </div>
         </div>
