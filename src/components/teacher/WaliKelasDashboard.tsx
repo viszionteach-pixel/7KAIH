@@ -43,9 +43,20 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
     };
   }, []);
 
+  // Helper to match log to student
+  const isStudentLog = (logStudentId: string, student: User) => {
+    if (!logStudentId || !student) return false;
+    const target = logStudentId.trim().toLowerCase();
+    return (
+      target === student.id.trim().toLowerCase() ||
+      (student.username && target === student.username.trim().toLowerCase()) ||
+      (student.name && target === student.name.trim().toLowerCase())
+    );
+  };
+
   // Filter students belonging to this class
   const classStudents = allUsers.filter(
-    (u) => u.role === 'siswa' && u.assignedClass === assignedClass
+    (u) => u.role === 'siswa' && u.assignedClass && u.assignedClass.trim().toUpperCase() === assignedClass.trim().toUpperCase()
   );
 
   const filteredStudents = classStudents.filter((s) =>
@@ -53,8 +64,9 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
   );
 
   // Filter logs for this class
-  const classStudentIds = new Set(classStudents.map((s) => s.id));
-  const classLogs = allLogs.filter((l) => classStudentIds.has(l.studentId));
+  const classLogs = allLogs.filter((l) =>
+    classStudents.some((s) => isStudentLog(l.studentId, s))
+  );
   const dailyClassLogs = classLogs.filter((l) => l.date === selectedDate);
 
   // Daily statistics for this class
@@ -250,7 +262,7 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
                 </tr>
               ) : (
                 filteredStudents.map((student, idx) => {
-                  const studentLog = dailyClassLogs.find((l) => l.studentId === student.id);
+                  const studentLog = dailyClassLogs.find((l) => isStudentLog(l.studentId, student));
 
                   return (
                     <tr key={student.id} className="hover:bg-amber-50/50 transition-colors">
@@ -302,7 +314,7 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
       {selectedStudentForReport && (
         <MonthlyReportModal
           student={selectedStudentForReport}
-          logs={allLogs.filter((l) => l.studentId === selectedStudentForReport.id)}
+          logs={allLogs.filter((l) => isStudentLog(l.studentId, selectedStudentForReport))}
           month={currentMonthNum}
           year={currentYearNum}
           config={{

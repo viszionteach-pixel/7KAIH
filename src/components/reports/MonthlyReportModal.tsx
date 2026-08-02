@@ -38,7 +38,16 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
   // Map logs by date (YYYY-MM-DD)
   const logMap = new Map<string, KAIHEntry>();
   logs.forEach((l) => {
-    logMap.set(l.date, l);
+    const existing = logMap.get(l.date);
+    if (!existing) {
+      logMap.set(l.date, l);
+    } else {
+      const newTime = new Date(l.fillTimestamp || 0).getTime();
+      const oldTime = new Date(existing.fillTimestamp || 0).getTime();
+      if (newTime >= oldTime || l.completedCount >= existing.completedCount) {
+        logMap.set(l.date, l);
+      }
+    }
   });
 
   // Build rows for all days in month

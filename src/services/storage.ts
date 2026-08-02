@@ -93,22 +93,12 @@ function mergeRemoteUsers(remoteUsers: User[]): User[] {
   const mergedMap = new Map<string, User>();
 
   remoteUsers.forEach((ru) => {
-    if (ru.role === 'siswa' && (/[a-z]/.test(ru.name) || ru.id.startsWith('std-7a-'))) {
-      recordDeletedUserId(ru.id);
-      if (isSupabaseConfigured) supabaseDeleteUser(ru.id);
-      return;
-    }
     if (!deleted.has(ru.id)) {
       mergedMap.set(ru.id, ru);
     }
   });
 
   localUsers.forEach((lu) => {
-    if (lu.role === 'siswa' && (/[a-z]/.test(lu.name) || lu.id.startsWith('std-7a-'))) {
-      recordDeletedUserId(lu.id);
-      if (isSupabaseConfigured) supabaseDeleteUser(lu.id);
-      return;
-    }
     if (!deleted.has(lu.id)) {
       if (!mergedMap.has(lu.id)) {
         mergedMap.set(lu.id, lu);
@@ -184,9 +174,14 @@ function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
         logsToPush.push(ll);
       } else {
         const rl = mergedMap.get(ll.id)!;
-        const localTime = new Date(ll.fillTimestamp || 0).getTime();
-        const remoteTime = new Date(rl.fillTimestamp || 0).getTime();
-        if (localTime > remoteTime) {
+        const parseTime = (ts?: string) => {
+          if (!ts) return 0;
+          const t = new Date(ts).getTime();
+          return isNaN(t) ? 0 : t;
+        };
+        const localTime = parseTime(ll.fillTimestamp) || Date.now();
+        const remoteTime = parseTime(rl.fillTimestamp);
+        if (localTime >= remoteTime) {
           mergedMap.set(ll.id, ll);
           logsToPush.push(ll);
         } else {
@@ -352,16 +347,6 @@ export function getStoredUsers(): User[] {
     const filtered: User[] = [];
 
     parsed.forEach((u) => {
-      // Discard sample students with lowercase names
-      if (u.role === 'siswa' && /[a-z]/.test(u.name)) {
-        modified = true;
-        recordDeletedUserId(u.id);
-        if (!isRemoteUpdating) {
-          supabaseDeleteUser(u.id);
-        }
-        return;
-      }
-
       const initAdmin = INITIAL_ADMINS.find((a) => a.id === u.id);
       if (initAdmin && (u.username !== initAdmin.username || u.name !== initAdmin.name)) {
         modified = true;
@@ -411,7 +396,7 @@ export function getStoredUsers(): User[] {
     if (modified) {
       localStorage.setItem(KEYS.USERS, JSON.stringify(filtered));
       if (!isRemoteUpdating) {
-        supabaseSaveUsers(filtered.filter(u => u.id.startsWith('adm-') || u.id.startsWith('bk-') || u.id.startsWith('wk-')));
+        supabaseSaveUsers(filtered);
       }
     }
 
