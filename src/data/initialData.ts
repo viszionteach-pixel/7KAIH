@@ -60,27 +60,41 @@ export const INITIAL_GURU_BK: User[] = [
   },
 ];
 
-// 32 Wali Kelas
-export const INITIAL_WALI_KELAS: User[] = ALL_CLASSES.map((cls, idx) => {
-  const teacherNames = [
-    'Siti Rahmah, S.Pd.', 'Ahmad Fauzi, M.Pd.', 'Tri Astuti, S.Pd.', 'Budi Santoso, S.Pd.',
-    'Hj. Maryam, M.Pd.', 'Dedi Kusnadi, S.Pd.', 'Eka Putri, S.Pd.', 'Fajar Nugraha, M.Pd.',
-    'Gita Savitri, S.Pd.', 'Hadi Wijaya, S.Pd.', 'Indah Lestari, M.Pd.', 'Joko Widodo, S.Pd.',
-    'Kusuma Wardani, S.Pd.', 'Lina Marlina, S.Pd.', 'M. Ridwan, S.Pd.', 'Neneng Hasanah, S.Pd.',
-    'Oki Setiana, M.Pd.', 'Pratama Arhan, S.Pd.', 'Qori Sandioriva, S.Pd.', 'Rizky Febian, S.Pd.',
-    'Sari Roti, S.Pd.', 'Taufik Hidayat, S.Pd.', 'Umar Bin Khattab, S.Pd.', 'Vina Panduwinata, S.Pd.',
-    'Wahyu Hidayat, S.Pd.', 'Xavier Hernandez, S.Pd.', 'Yuni Shara, S.Pd.', 'Zainuddin MZ, S.Pd.',
-    'Agus Yudhoyono, S.Pd.', 'Bintang Emon, S.Pd.', 'Cinta Laura, S.Pd.', 'Dono Warkop, S.Pd.'
-  ];
-  return {
-    id: `wk-${cls.toLowerCase()}`,
-    username: `walikelas.${cls.toLowerCase()}`,
-    name: teacherNames[idx % teacherNames.length],
-    role: 'wali_kelas' as const,
-    assignedClass: cls,
-    nip: `197508${(idx + 10).toString().padStart(2, '0')} 200212 ${idx % 2 === 0 ? '2' : '1'} 00${(idx % 9) + 1}`,
-  };
-});
+// 32 Real Wali Kelas from Image
+export const INITIAL_WALI_KELAS: User[] = [
+  { id: 'wk-7a', username: 'Try Jumiyati S.Pd.', name: 'Try Jumiyati S.Pd.', role: 'wali_kelas', assignedClass: '7A', nip: '199206262024212026' },
+  { id: 'wk-7b', username: 'Sahril S.Pd.', name: 'Sahril S.Pd.', role: 'wali_kelas', assignedClass: '7B', nip: '198003312023211006' },
+  { id: 'wk-7c', username: 'Greis Tumundo M.Pd.', name: 'Greis Tumundo M.Pd.', role: 'wali_kelas', assignedClass: '7C', nip: '197606162006042041' },
+  { id: 'wk-7d', username: 'Dea Talitha Vashti Yumna S.Pd.', name: 'Dea Talitha Vashti Yumna S.Pd.', role: 'wali_kelas', assignedClass: '7D', nip: '199807102024212020' },
+  { id: 'wk-7e', username: 'Emerentiana Tulak Andi S.Pd.', name: 'Emerentiana Tulak Andi S.Pd.', role: 'wali_kelas', assignedClass: '7E', nip: '200101232025212010' },
+  { id: 'wk-7f', username: 'Fri Maulayanti S.Kom.', name: 'Fri Maulayanti S.Kom.', role: 'wali_kelas', assignedClass: '7F', nip: '197802172022212002' },
+  { id: 'wk-7g', username: 'Nida Amalia S.Pd', name: 'Nida Amalia S.Pd', role: 'wali_kelas', assignedClass: '7G', nip: '199603222022212001' },
+  { id: 'wk-7h', username: 'Aprillia S.Pd.', name: 'Aprillia S.Pd.', role: 'wali_kelas', assignedClass: '7H', nip: '199904042024212009' },
+  { id: 'wk-7i', username: 'Fani Rizki Aprianto S.Pd.', name: 'Fani Rizki Aprianto S.Pd.', role: 'wali_kelas', assignedClass: '7I', nip: '199004162025211012' },
+  { id: 'wk-7j', username: 'Sukriani S.Pd', name: 'Sukriani S.Pd', role: 'wali_kelas', assignedClass: '7J', nip: '197007152022212004' },
+  { id: 'wk-7k', username: 'Khumayda Shofiyul Khaliyah M.Pd', name: 'Khumayda Shofiyul Khaliyah M.Pd', role: 'wali_kelas', assignedClass: '7K', nip: '199410172024212009' },
+  { id: 'wk-8a', username: 'Dewi Rezkyana Bahtiar S.Pd', name: 'Dewi Rezkyana Bahtiar S.Pd', role: 'wali_kelas', assignedClass: '8A', nip: '199806112024212007' },
+  { id: 'wk-8b', username: 'Santi Dwi Safitri S.Pd.', name: 'Santi Dwi Safitri S.Pd.', role: 'wali_kelas', assignedClass: '8B', nip: '198108282009032012' },
+  { id: 'wk-8c', username: 'Yuslikhatun Arofati S.Pd', name: 'Yuslikhatun Arofati S.Pd', role: 'wali_kelas', assignedClass: '8C', nip: '196704181997022002' },
+  { id: 'wk-8d', username: 'Kornelia Kondolele S.Pd', name: 'Kornelia Kondolele S.Pd', role: 'wali_kelas', assignedClass: '8D', nip: '198010062024212004' },
+  { id: 'wk-8e', username: 'Anissa Mentari S.Pd', name: 'Anissa Mentari S.Pd', role: 'wali_kelas', assignedClass: '8E', nip: '199606122023212014' },
+  { id: 'wk-8f', username: 'Charlyne Sterly Warouw S.Pd. M.M', name: 'Charlyne Sterly Warouw S.Pd. M.M', role: 'wali_kelas', assignedClass: '8F', nip: '199110042025212050' },
+  { id: 'wk-8g', username: 'Resi Mandalia S.Pd', name: 'Resi Mandalia S.Pd', role: 'wali_kelas', assignedClass: '8G', nip: '199204262023212019' },
+  { id: 'wk-8h', username: 'Arfiana Herawati S.Pd.', name: 'Arfiana Herawati S.Pd.', role: 'wali_kelas', assignedClass: '8H', nip: '198011162009032009' },
+  { id: 'wk-8i', username: 'Diar Ramadhani S.Pd', name: 'Diar Ramadhani S.Pd', role: 'wali_kelas', assignedClass: '8I', nip: '20260100020001' },
+  { id: 'wk-8j', username: 'Aulia Indarti Iasah S.Pd.', name: 'Aulia Indarti Iasah S.Pd.', role: 'wali_kelas', assignedClass: '8J', nip: '199701102025212034' },
+  { id: 'wk-8k', username: 'Heny Mardiana Nur S.Pd', name: 'Heny Mardiana Nur S.Pd', role: 'wali_kelas', assignedClass: '8K', nip: '197512102022212002' },
+  { id: 'wk-9a', username: 'Mendang Pasaribu S.Pd', name: 'Mendang Pasaribu S.Pd', role: 'wali_kelas', assignedClass: '9A', nip: '199306192023212011' },
+  { id: 'wk-9b', username: 'Muhammad Ansar .B. S.Pd', name: 'Muhammad Ansar .B. S.Pd', role: 'wali_kelas', assignedClass: '9B', nip: '197404142014071004' },
+  { id: 'wk-9c', username: 'Riezko Dwi Gusfarda S.Kom', name: 'Riezko Dwi Gusfarda S.Kom', role: 'wali_kelas', assignedClass: '9C', nip: '199608252024211003' },
+  { id: 'wk-9d', username: 'Idris Palulla S.Pd', name: 'Idris Palulla S.Pd', role: 'wali_kelas', assignedClass: '9D', nip: '197212192001121001' },
+  { id: 'wk-9e', username: 'Indrawati S.Pd', name: 'Indrawati S.Pd', role: 'wali_kelas', assignedClass: '9E', nip: '199003312023211006' },
+  { id: 'wk-9f', username: 'Indra Novita Yuliana S.Pd', name: 'Indra Novita Yuliana S.Pd', role: 'wali_kelas', assignedClass: '9F', nip: '198111162005022005' },
+  { id: 'wk-9g', username: 'Wiwit Putri Mustikaningtyas S.Pd', name: 'Wiwit Putri Mustikaningtyas S.Pd', role: 'wali_kelas', assignedClass: '9G', nip: '199111082023212010' },
+  { id: 'wk-9h', username: 'Rizki Paramita Yulisna S.Pd', name: 'Rizki Paramita Yulisna S.Pd', role: 'wali_kelas', assignedClass: '9H', nip: '198802152024212006' },
+  { id: 'wk-9i', username: 'Atik Sri Hayati S.Pd', name: 'Atik Sri Hayati S.Pd', role: 'wali_kelas', assignedClass: '9I', nip: '196810231991032009' },
+  { id: 'wk-9j', username: 'Lukito S.Ag', name: 'Lukito S.Ag', role: 'wali_kelas', assignedClass: '9J', nip: '196806222005011003' },
+];
 
 // Sample Students (Cleared - only CAPITAL LETTER real student data is retained)
 export const INITIAL_STUDENTS: User[] = [];

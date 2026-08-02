@@ -328,13 +328,42 @@ export function getStoredUsers(): User[] {
         return;
       }
 
+      if (u.role === 'wali_kelas') {
+        const initWK = INITIAL_WALI_KELAS.find(
+          (w) => w.id === u.id || w.assignedClass === u.assignedClass
+        );
+        if (initWK) {
+          if (u.name !== initWK.name || u.username !== initWK.username || u.nip !== initWK.nip || u.id !== initWK.id) {
+            modified = true;
+            filtered.push({
+              ...u,
+              id: initWK.id,
+              name: initWK.name,
+              username: initWK.username,
+              nip: initWK.nip,
+              assignedClass: initWK.assignedClass,
+            });
+            return;
+          }
+        }
+      }
+
       filtered.push(u);
+    });
+
+    // Ensure all 32 INITIAL_WALI_KELAS are present in filtered list
+    INITIAL_WALI_KELAS.forEach((wk) => {
+      const exists = filtered.some((f) => f.role === 'wali_kelas' && f.assignedClass === wk.assignedClass);
+      if (!exists) {
+        modified = true;
+        filtered.push(wk);
+      }
     });
 
     if (modified) {
       localStorage.setItem(KEYS.USERS, JSON.stringify(filtered));
       if (!isRemoteUpdating) {
-        supabaseSaveUsers(filtered.filter(u => u.id.startsWith('adm-') || u.id.startsWith('bk-')));
+        supabaseSaveUsers(filtered.filter(u => u.id.startsWith('adm-') || u.id.startsWith('bk-') || u.id.startsWith('wk-')));
       }
     }
 
