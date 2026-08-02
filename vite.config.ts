@@ -4,12 +4,9 @@ import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
-  // Load all env vars (no prefix filter) so we can bridge platform-provided
-  // Supabase credentials (NEXT_PUBLIC_* / SUPABASE_*) into the client bundle on
-  // deploy. In local dev the VITE_* vars in .env.local are exposed natively by
-  // Vite, so we only add `define` entries when a bridged value actually exists
-  // to avoid clobbering the native ones with empty strings.
-  const env = {...loadEnv(mode, process.cwd(), ''), ...process.env};
+  // Load all env vars (no prefix filter) so we can bridge the platform-provided
+  // Supabase credentials into the client bundle.
+  const env = loadEnv(mode, process.cwd(), '');
   const supabaseUrl =
     env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL || '';
   const supabaseAnonKey =
@@ -19,19 +16,12 @@ export default defineConfig(({mode}) => {
     env.SUPABASE_PUBLISHABLE_KEY ||
     '';
 
-  const supabaseDefine: Record<string, string> = {};
-  if (supabaseUrl) {
-    supabaseDefine['import.meta.env.VITE_SUPABASE_URL'] =
-      JSON.stringify(supabaseUrl);
-  }
-  if (supabaseAnonKey) {
-    supabaseDefine['import.meta.env.VITE_SUPABASE_ANON_KEY'] =
-      JSON.stringify(supabaseAnonKey);
-  }
-
   return {
     plugins: [react(), tailwindcss()],
-    define: supabaseDefine,
+    define: {
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
+      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseAnonKey),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
