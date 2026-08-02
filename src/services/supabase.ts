@@ -58,6 +58,27 @@ export async function supabaseDeleteUser(userId: string): Promise<boolean> {
   }
 }
 
+export async function supabaseSyncAndCleanUsers(activeUsers: User[]): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const activeIds = new Set(activeUsers.map((u) => u.id));
+    const { data: existingRows } = await supabase.from('kaih_users').select('id');
+    if (existingRows && existingRows.length > 0) {
+      const orphanedIds = existingRows.map((r) => r.id).filter((id) => !activeIds.has(id));
+      if (orphanedIds.length > 0) {
+        for (let i = 0; i < orphanedIds.length; i += 100) {
+          const chunk = orphanedIds.slice(i, i + 100);
+          await supabase.from('kaih_users').delete().in('id', chunk);
+        }
+      }
+    }
+    return await supabaseSaveUsers(activeUsers);
+  } catch (err) {
+    handleSupabaseError(err, 'Sync and Clean Users');
+    return false;
+  }
+}
+
 export async function supabaseFetchUsers(): Promise<User[] | null> {
   if (!supabase) return null;
   try {
@@ -116,6 +137,27 @@ export async function supabaseSaveLogs(logs: KAIHEntry[]): Promise<boolean> {
     return true;
   } catch (err) {
     handleSupabaseError(err, 'Save Logs');
+    return false;
+  }
+}
+
+export async function supabaseSyncAndCleanLogs(activeLogs: KAIHEntry[]): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const activeIds = new Set(activeLogs.map((l) => l.id));
+    const { data: existingRows } = await supabase.from('kaih_logs').select('id');
+    if (existingRows && existingRows.length > 0) {
+      const orphanedIds = existingRows.map((r) => r.id).filter((id) => !activeIds.has(id));
+      if (orphanedIds.length > 0) {
+        for (let i = 0; i < orphanedIds.length; i += 100) {
+          const chunk = orphanedIds.slice(i, i + 100);
+          await supabase.from('kaih_logs').delete().in('id', chunk);
+        }
+      }
+    }
+    return await supabaseSaveLogs(activeLogs);
+  } catch (err) {
+    handleSupabaseError(err, 'Sync and Clean Logs');
     return false;
   }
 }

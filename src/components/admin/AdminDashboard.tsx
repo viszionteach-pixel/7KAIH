@@ -10,7 +10,7 @@ import { ALL_CLASSES } from '../../data/initialData';
 import {
   getStoredUsers, saveStoredUsers, getStoredSchoolConfig, saveStoredSchoolConfig,
   saveCustomPassword, getCustomPasswords, resetAllDataToDefault, getStoredLogs,
-  exportFullBackupJSON, importFullBackupJSON
+  exportFullBackupJSON, importFullBackupJSON, cleanAndResyncSupabaseCloud
 } from '../../services/storage';
 import { StudentImportModal } from './StudentImportModal';
 import { ExportHabitsModal } from '../reports/ExportHabitsModal';
@@ -86,9 +86,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [lastActionInfo, setLastActionInfo] = useState<string | null>(null);
   const [saveSuccessNotification, setSaveSuccessNotification] = useState<string | null>(null);
+  const [isResyncingSupabase, setIsResyncingSupabase] = useState<boolean>(false);
 
   // Unified Save All Function
-  const executeSaveAll = () => {
+  const executeSaveAll = async () => {
     // 1. Save users
     saveStoredUsers(users);
 
@@ -107,17 +108,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     saveStoredSchoolConfig(updatedConfig);
     setSchoolConfig(updatedConfig);
 
+    // 3. Purge orphaned data and resync to Supabase
+    await cleanAndResyncSupabaseCloud();
+
     setHasUnsavedChanges(false);
     const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const msg = `Semua perubahan data berhasil disimpan dan disinkronkan ke Cloud pada jam ${timeStr}!`;
     setSaveSuccessNotification(msg);
     setLastActionInfo(null);
 
-    alert('✓ Berhasil menyimpan seluruh perubahan data (akun & konfigurasi) ke Supabase Cloud Database dan memori lokal!');
+    alert('✓ Berhasil menyimpan seluruh perubahan data dan membersihkan data lama di Supabase Cloud Database!');
 
     setTimeout(() => {
       setSaveSuccessNotification(null);
     }, 6000);
+  };
+
+  const handleCleanAndResyncSupabase = async () => {
+    if (confirm('Apakah Anda yakin ingin membersihkan data lama dari tabel Supabase dan menyinkronkan ulang seluruh data aktif?')) {
+      setIsResyncingSupabase(true);
+      const success = await cleanAndResyncSupabaseCloud();
+      setIsResyncingSupabase(false);
+      if (success) {
+        setUsers(getStoredUsers());
+        alert('✓ Berhasil! Tabel Supabase telah dibersihkan dari data lama dan disinkronkan dengan data terbaru!');
+      } else {
+        alert('Gagal membersihkan Supabase. Silakan periksa koneksi internet Anda.');
+      }
+    }
   };
 
   useEffect(() => {
@@ -1314,6 +1332,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                 />
               </label>
             </div>
+          </div>
+
+          {/* PURGE / CLEAN SUPABASE TABLES CARD */}
+          <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl space-y-4">
+            <div className="space-y-2">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                <RefreshCw className="w-5 h-5" />
+              </div>
+              <h4 className="text-base font-extrabold text-slate-900">
+                3. Bersihkan Data Lama di Supabase Cloud (Resync Total)
+              </h4>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Hapus semua baris pengguna/log lama yang sudah tidak aktif dari tabel Supabase Cloud (<code className="bg-amber-100 px-1 rounded">kaih_users</code> & <code className="bg-amber-100 px-1 rounded">kaih_logs</code>) dan timpa dengan data aktif aplikasi terkini.
+              </p>
+            </div>
+
+            <button
+              onClick={handleCleanAndResyncSupabase}
+              disabled={isResyncingSupabase}
+              className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+            >
+              <RefreshCw className={`w-4 h-4 ${isResyncingSupabase ? 'animate-spin' : ''}`} />
+              {isResyncingSupabase ? 'Sedang Membersihkan & Menyinkronkan...' : 'Timpa & Bersihkan Tabel Supabase Sekarang'}
+            </button>
           </div>
 
           {/* RESET SYSTEM DATA DANGER ZONE */}

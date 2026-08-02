@@ -3,9 +3,11 @@ import { INITIAL_ADMINS, INITIAL_GURU_BK, INITIAL_WALI_KELAS, INITIAL_STUDENTS, 
 import {
   isSupabaseConfigured,
   supabaseSaveUsers,
+  supabaseSyncAndCleanUsers,
   supabaseDeleteUser,
   supabaseFetchUsers,
   supabaseSaveLogs,
+  supabaseSyncAndCleanLogs,
   supabaseFetchLogs,
   supabaseSaveSchoolConfig,
   supabaseFetchSchoolConfig,
@@ -91,7 +93,7 @@ function mergeRemoteUsers(remoteUsers: User[]): User[] {
   const mergedMap = new Map<string, User>();
 
   remoteUsers.forEach((ru) => {
-    if (ru.role === 'siswa' && /[a-z]/.test(ru.name)) {
+    if (ru.role === 'siswa' && (/[a-z]/.test(ru.name) || ru.id.startsWith('std-7a-'))) {
       recordDeletedUserId(ru.id);
       if (isSupabaseConfigured) supabaseDeleteUser(ru.id);
       return;
@@ -102,7 +104,7 @@ function mergeRemoteUsers(remoteUsers: User[]): User[] {
   });
 
   localUsers.forEach((lu) => {
-    if (lu.role === 'siswa' && /[a-z]/.test(lu.name)) {
+    if (lu.role === 'siswa' && (/[a-z]/.test(lu.name) || lu.id.startsWith('std-7a-'))) {
       recordDeletedUserId(lu.id);
       if (isSupabaseConfigured) supabaseDeleteUser(lu.id);
       return;
@@ -442,13 +444,39 @@ export function saveStoredUsers(users: User[]): void {
   localStorage.setItem(KEYS.USERS, JSON.stringify(validUsers));
   notifyDataChanged();
 
-  if (!isRemoteUpdating) {
-    if (changedOrNewUsers.length > 0) {
-      if (isSupabaseConfigured) supabaseSaveUsers(changedOrNewUsers);
+  if (!isRemoteUpdating && isSupabaseConfigured) {
+    supabaseSyncAndCleanUsers(validUsers);
+  }
+}
+
+export async function cleanAndResyncSupabaseCloud(): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  try {
+    isRemoteUpdating = true;
+    const users = getStoredUsers();
+    const logs = getStoredLogs();
+    const config = getStoredSchoolConfig();
+    const bkNotes = getStoredBKNotes();
+    const passwords = getCustomPasswords();
+
+    await Promise.all([
+      supabaseSyncAndCleanUsers(users),
+      supabaseSyncAndCleanLogs(logs),
+      supabaseSaveSchoolConfig(config),
+      supabaseSaveBKNotes(bkNotes),
+    ]);
+
+    for (const [userId, pass] of Object.entries(passwords)) {
+      await supabaseSaveCustomPassword(userId, pass);
     }
-    deletedIds.forEach((id) => {
-      if (isSupabaseConfigured) supabaseDeleteUser(id);
-    });
+
+    isRemoteUpdating = false;
+    notifyDataChanged();
+    return true;
+  } catch (err) {
+    console.error('Failed to clean and resync Supabase:', err);
+    isRemoteUpdating = false;
+    return false;
   }
 }
 
