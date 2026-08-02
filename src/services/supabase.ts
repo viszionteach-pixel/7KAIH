@@ -21,6 +21,7 @@ export async function supabaseSaveUsers(users: User[]): Promise<boolean> {
   try {
     const payload = users.map((u) => ({
       id: u.id,
+      data: u,
       username: u.username,
       name: u.name,
       role: u.role,
@@ -33,7 +34,7 @@ export async function supabaseSaveUsers(users: User[]): Promise<boolean> {
       updated_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase.from('users').upsert(payload, { onConflict: 'id' });
+    const { error } = await supabase.from('kaih_users').upsert(payload, { onConflict: 'id' });
     if (error) {
       handleSupabaseError(error, 'Save Users');
       return false;
@@ -48,7 +49,7 @@ export async function supabaseSaveUsers(users: User[]): Promise<boolean> {
 export async function supabaseDeleteUser(userId: string): Promise<boolean> {
   if (!supabase) return false;
   try {
-    const { error } = await supabase.from('users').delete().eq('id', userId);
+    const { error } = await supabase.from('kaih_users').delete().eq('id', userId);
     if (error) handleSupabaseError(error, 'Delete User');
     return !error;
   } catch (err) {
@@ -60,23 +61,33 @@ export async function supabaseDeleteUser(userId: string): Promise<boolean> {
 export async function supabaseFetchUsers(): Promise<User[] | null> {
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.from('users').select('*');
-    if (error || !data) {
+    const { data, error } = await supabase.from('kaih_users').select('*');
+    if (error) {
       handleSupabaseError(error, 'Fetch Users');
       return null;
     }
-    return data.map((row) => ({
-      id: row.id,
-      username: row.username,
-      name: row.name,
-      role: row.role,
-      assignedClass: row.assigned_class || undefined,
-      nisn: row.nisn || undefined,
-      nip: row.nip || undefined,
-      agama: row.agama || 'Islam',
-      adminTitle: row.admin_title || undefined,
-      avatarUrl: row.avatar_url || undefined,
-    }));
+    if (!data) return null;
+
+    return data.map((row) => {
+      if (row.data) {
+        const parsed = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+        if (parsed && parsed.id && parsed.name) {
+          return parsed as User;
+        }
+      }
+      return {
+        id: row.id,
+        username: row.username,
+        name: row.name,
+        role: row.role,
+        assignedClass: row.assigned_class || undefined,
+        nisn: row.nisn || undefined,
+        nip: row.nip || undefined,
+        agama: row.agama || 'Islam',
+        adminTitle: row.admin_title || undefined,
+        avatarUrl: row.avatar_url || undefined,
+      } as User;
+    });
   } catch (err) {
     handleSupabaseError(err, 'Fetch Users');
     return null;
@@ -93,10 +104,11 @@ export async function supabaseSaveLogs(logs: KAIHEntry[]): Promise<boolean> {
       date: l.date,
       fill_timestamp: l.fillTimestamp,
       data_json: JSON.stringify(l),
+      data: l,
       updated_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase.from('logs').upsert(payload, { onConflict: 'id' });
+    const { error } = await supabase.from('kaih_logs').upsert(payload, { onConflict: 'id' });
     if (error) {
       handleSupabaseError(error, 'Save Logs');
       return false;
@@ -111,15 +123,19 @@ export async function supabaseSaveLogs(logs: KAIHEntry[]): Promise<boolean> {
 export async function supabaseFetchLogs(): Promise<KAIHEntry[] | null> {
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.from('logs').select('*');
-    if (error || !data) {
+    const { data, error } = await supabase.from('kaih_logs').select('*');
+    if (error) {
       handleSupabaseError(error, 'Fetch Logs');
       return null;
     }
+    if (!data) return null;
+
     return data
       .map((row) => {
         try {
-          return typeof row.data_json === 'string' ? JSON.parse(row.data_json) : row.data_json;
+          if (row.data) return typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+          if (row.data_json) return typeof row.data_json === 'string' ? JSON.parse(row.data_json) : row.data_json;
+          return null;
         } catch {
           return null;
         }
@@ -138,9 +154,10 @@ export async function supabaseSaveSchoolConfig(config: MonthlyReportConfig): Pro
     const payload = {
       id: 'main_config',
       data_json: JSON.stringify(config),
+      data: config,
       updated_at: new Date().toISOString(),
     };
-    const { error } = await supabase.from('school_config').upsert(payload, { onConflict: 'id' });
+    const { error } = await supabase.from('kaih_school_config').upsert(payload, { onConflict: 'id' });
     if (error) {
       handleSupabaseError(error, 'Save School Config');
       return false;
@@ -155,13 +172,16 @@ export async function supabaseSaveSchoolConfig(config: MonthlyReportConfig): Pro
 export async function supabaseFetchSchoolConfig(): Promise<MonthlyReportConfig | null> {
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.from('school_config').select('*').eq('id', 'main_config').single();
-    if (error || !data) {
+    const { data, error } = await supabase.from('kaih_school_config').select('*').eq('id', 'main_config').single();
+    if (error) {
       handleSupabaseError(error, 'Fetch School Config');
       return null;
     }
+    if (!data) return null;
     try {
-      return typeof data.data_json === 'string' ? JSON.parse(data.data_json) : data.data_json;
+      if (data.data) return typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+      if (data.data_json) return typeof data.data_json === 'string' ? JSON.parse(data.data_json) : data.data_json;
+      return null;
     } catch {
       return null;
     }
@@ -182,12 +202,16 @@ export async function supabaseSaveBKNotes(notes: BKCounselingNote[]): Promise<bo
       date: n.date,
       catatan: n.catatan,
       tindakan_lanjut: n.tindakanLanjut,
+      data: n,
       updated_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase.from('bk_notes').upsert(payload, { onConflict: 'id' });
-    if (error) handleSupabaseError(error, 'Save BK Notes');
-    return !error;
+    const { error } = await supabase.from('kaih_bk_notes').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      handleSupabaseError(error, 'Save BK Notes');
+      return false;
+    }
+    return true;
   } catch (err) {
     handleSupabaseError(err, 'Save BK Notes');
     return false;
@@ -197,19 +221,23 @@ export async function supabaseSaveBKNotes(notes: BKCounselingNote[]): Promise<bo
 export async function supabaseFetchBKNotes(): Promise<BKCounselingNote[] | null> {
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.from('bk_notes').select('*');
-    if (error || !data) {
+    const { data, error } = await supabase.from('kaih_bk_notes').select('*');
+    if (error) {
       handleSupabaseError(error, 'Fetch BK Notes');
       return null;
     }
-    return data.map((row) => ({
-      id: row.id,
-      studentId: row.student_id,
-      guruBkId: row.guru_bk_id,
-      date: row.date,
-      catatan: row.catatan,
-      tindakanLanjut: row.tindakan_lanjut,
-    }));
+    if (!data) return null;
+    return data.map((row) => {
+      if (row.data) return typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+      return {
+        id: row.id,
+        studentId: row.student_id,
+        guruBkId: row.guru_bk_id,
+        date: row.date,
+        catatan: row.catatan,
+        tindakanLanjut: row.tindakan_lanjut,
+      };
+    });
   } catch (err) {
     handleSupabaseError(err, 'Fetch BK Notes');
     return null;
@@ -225,7 +253,7 @@ export async function supabaseSaveCustomPassword(userId: string, pass: string): 
       password: pass,
       updated_at: new Date().toISOString(),
     };
-    const { error } = await supabase.from('custom_passwords').upsert(payload, { onConflict: 'id' });
+    const { error } = await supabase.from('kaih_passwords').upsert(payload, { onConflict: 'id' });
     if (error) {
       handleSupabaseError(error, 'Save Custom Password');
       return false;
@@ -240,7 +268,7 @@ export async function supabaseSaveCustomPassword(userId: string, pass: string): 
 export async function supabaseFetchCustomPasswords(): Promise<Record<string, string> | null> {
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.from('custom_passwords').select('*');
+    const { data, error } = await supabase.from('kaih_passwords').select('*');
     if (error || !data) return null;
     const map: Record<string, string> = {};
     data.forEach((row) => {

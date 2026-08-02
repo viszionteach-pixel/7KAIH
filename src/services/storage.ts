@@ -93,9 +93,7 @@ function mergeRemoteUsers(remoteUsers: User[]): User[] {
   remoteUsers.forEach((ru) => {
     if (ru.role === 'siswa' && /[a-z]/.test(ru.name)) {
       recordDeletedUserId(ru.id);
-      if (!isRemoteUpdating) {
-        if (isSupabaseConfigured) supabaseDeleteUser(ru.id);
-      }
+      if (isSupabaseConfigured) supabaseDeleteUser(ru.id);
       return;
     }
     if (!deleted.has(ru.id)) {
@@ -106,9 +104,7 @@ function mergeRemoteUsers(remoteUsers: User[]): User[] {
   localUsers.forEach((lu) => {
     if (lu.role === 'siswa' && /[a-z]/.test(lu.name)) {
       recordDeletedUserId(lu.id);
-      if (!isRemoteUpdating) {
-        if (isSupabaseConfigured) supabaseDeleteUser(lu.id);
-      }
+      if (isSupabaseConfigured) supabaseDeleteUser(lu.id);
       return;
     }
     if (!deleted.has(lu.id)) {
@@ -121,8 +117,49 @@ function mergeRemoteUsers(remoteUsers: User[]): User[] {
     }
   });
 
+  // Always enforce official INITIAL_WALI_KELAS, INITIAL_ADMINS, INITIAL_GURU_BK details
+  mergedMap.forEach((u, id) => {
+    if (u.role === 'wali_kelas') {
+      const initWK = INITIAL_WALI_KELAS.find((w) => w.id === id || w.assignedClass === u.assignedClass);
+      if (initWK) {
+        mergedMap.set(id, {
+          ...u,
+          id: initWK.id,
+          name: initWK.name,
+          username: initWK.username,
+          nip: initWK.nip,
+          assignedClass: initWK.assignedClass,
+        });
+      }
+    } else if (u.role === 'admin') {
+      const initAdmin = INITIAL_ADMINS.find((a) => a.id === id);
+      if (initAdmin) {
+        mergedMap.set(id, { ...u, username: initAdmin.username, name: initAdmin.name, adminTitle: initAdmin.adminTitle });
+      }
+    } else if (u.role === 'guru_bk') {
+      const initBK = INITIAL_GURU_BK.find((b) => b.id === id);
+      if (initBK) {
+        mergedMap.set(id, { ...u, username: initBK.username, name: initBK.name });
+      }
+    }
+  });
+
+  // Ensure all 32 INITIAL_WALI_KELAS exist in merged list
+  INITIAL_WALI_KELAS.forEach((wk) => {
+    const exists = Array.from(mergedMap.values()).some((f) => f.role === 'wali_kelas' && f.assignedClass === wk.assignedClass);
+    if (!exists) {
+      mergedMap.set(wk.id, wk);
+    }
+  });
+
   const result = Array.from(mergedMap.values());
   localStorage.setItem(KEYS.USERS, JSON.stringify(result));
+
+  // Push updated user list (including all official 32 Wali Kelas) to Supabase
+  if (isSupabaseConfigured) {
+    supabaseSaveUsers(result);
+  }
+
   return result;
 }
 
