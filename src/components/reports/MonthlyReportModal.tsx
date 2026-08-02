@@ -169,19 +169,36 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
                 padding: 0 !important;
                 width: 100% !important;
                 height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
                 overflow: visible !important;
               }
-              /* Hide all background dashboard elements outside the print canvas */
-              body * {
-                visibility: hidden !important;
+              /* Hide all non-printable elements completely so they do not create blank pages */
+              body *:not(:has(.printable-paper-canvas)):not(.printable-paper-canvas):not(.printable-paper-canvas *) {
+                display: none !important;
               }
-              /* Show ONLY the printable canvas and its child elements */
-              .printable-paper-canvas,
-              .printable-paper-canvas * {
-                visibility: visible !important;
+              /* Reset layout on ancestor containers leading to printable canvas */
+              body *:has(.printable-paper-canvas) {
+                display: block !important;
+                position: static !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                overflow: visible !important;
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                width: 100% !important;
+                inset: auto !important;
+                transform: none !important;
               }
+              /* Printable Paper Canvas styling */
               .printable-paper-canvas {
-                position: absolute !important;
+                display: block !important;
+                visibility: visible !important;
+                position: relative !important;
                 left: 0 !important;
                 top: 0 !important;
                 width: 100% !important;
@@ -190,8 +207,13 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
                 background: white !important;
                 box-shadow: none !important;
                 border: none !important;
+                overflow: visible !important;
+                height: auto !important;
                 font-size: 9.5px !important;
                 line-height: 1.2 !important;
+              }
+              .printable-paper-canvas * {
+                visibility: visible !important;
               }
               .printable-paper-canvas table th {
                 padding: 3px 4px !important;
@@ -203,7 +225,8 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
                 font-size: 9px !important;
                 line-height: 1.15 !important;
               }
-              .printable-paper-canvas .print\\:hidden {
+              .printable-paper-canvas .print\\:hidden,
+              .print\\:hidden {
                 display: none !important;
               }
               tr {
