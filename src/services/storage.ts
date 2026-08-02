@@ -167,6 +167,7 @@ function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
   const deleted = getDeletedLogIds();
   const localLogs = getStoredLogs();
   const mergedMap = new Map<string, KAIHEntry>();
+  const logsToPush: KAIHEntry[] = [];
 
   remoteLogs.forEach((rl) => {
     if (!deleted.has(rl.id)) {
@@ -178,15 +179,28 @@ function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
     if (!deleted.has(ll.id)) {
       if (!mergedMap.has(ll.id)) {
         mergedMap.set(ll.id, ll);
+        logsToPush.push(ll);
       } else {
         const rl = mergedMap.get(ll.id)!;
-        mergedMap.set(ll.id, { ...ll, ...rl });
+        const localTime = new Date(ll.fillTimestamp || 0).getTime();
+        const remoteTime = new Date(rl.fillTimestamp || 0).getTime();
+        if (localTime > remoteTime) {
+          mergedMap.set(ll.id, ll);
+          logsToPush.push(ll);
+        } else {
+          mergedMap.set(ll.id, rl);
+        }
       }
     }
   });
 
   const result = Array.from(mergedMap.values());
   localStorage.setItem(KEYS.LOGS, JSON.stringify(result));
+
+  if (logsToPush.length > 0 && isSupabaseConfigured && !isRemoteUpdating) {
+    supabaseSaveLogs(logsToPush);
+  }
+
   return result;
 }
 
