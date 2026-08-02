@@ -67,8 +67,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
   const [jamTidur, setJamTidur] = useState('21:00');
   const [tidurNotes, setTidurNotes] = useState('');
 
+  const isLoadedRef = React.useRef(false);
+
   // Load logs on mount and when date changes or when data updates remotely
   useEffect(() => {
+    isLoadedRef.current = false;
     const loadLogs = () => {
       const allLogs = getStoredLogs();
       const myLogs = allLogs.filter((l) => l.studentId === currentUser.id);
@@ -123,6 +126,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
         setMasyarakatChecked(false);
         setTidurChecked(false);
       }
+
+      setTimeout(() => {
+        isLoadedRef.current = true;
+      }, 50);
     };
 
     loadLogs();
@@ -132,10 +139,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
     };
   }, [currentUser.id, selectedDate]);
 
-  // Handle Save
-  const handleSaveForm = (e: React.FormEvent) => {
-    e.preventDefault();
-
+  // Build current KAIH entry object
+  const buildCurrentEntry = (): KAIHEntry => {
     let completedCount = 0;
     if (bangunPagiChecked) completedCount++;
     if (beribadahChecked) completedCount++;
@@ -148,7 +153,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
     const pct = Math.round((completedCount / 7) * 100);
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
-    const newEntry: KAIHEntry = {
+    return {
       id: currentEntry?.id || `log-${currentUser.id}-${selectedDate}`,
       studentId: currentUser.id,
       date: selectedDate,
@@ -198,7 +203,29 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
       completedCount,
       scorePercentage: pct,
     };
+  };
 
+  // Realtime Auto-Sync on any checklist toggle/input change
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    const newEntry = buildCurrentEntry();
+    const updated = addOrUpdateLog(newEntry);
+    setLogs(updated.filter((l) => l.studentId === currentUser.id));
+    setCurrentEntry(newEntry);
+  }, [
+    bangunPagiChecked, jamBangun, bangunNotes,
+    beribadahChecked, selectedAgama, sholatIslam, nonIslamData,
+    olahragaChecked, jenisOlahraga, durasiOlahraga, olahragaNotes,
+    makanChecked, menuMakanan, makanNotes,
+    belajarChecked, mataPelajaran, topikBelajar, durasiBelajar, belajarNotes,
+    masyarakatChecked, kegiatanMasyarakat, masyarakatNotes,
+    tidurChecked, jamTidur, tidurNotes
+  ]);
+
+  // Handle Manual Save Button Click (shows toast)
+  const handleSaveForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newEntry = buildCurrentEntry();
     const updated = addOrUpdateLog(newEntry);
     setLogs(updated.filter((l) => l.studentId === currentUser.id));
     setCurrentEntry(newEntry);
@@ -276,17 +303,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
 
       {/* 7 KAIH Checklist Form */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-4 mb-6 gap-3">
           <div>
             <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
               <CheckCircle2 className="w-6 h-6 text-blue-600" />
               Checklist 7 KAIH Tanggal {selectedDate}
             </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Waktu pengisian otomatis tercatat sesuai waktu HP/gadget.
-            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Tersimpan & Realtime Sinkron Seluruh Perangkat
+              </span>
+            </div>
           </div>
-          <span className="text-xs font-bold px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg border border-blue-200">
+          <span className="text-xs font-bold px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 self-start sm:self-center">
             Terisi: {currentEntry?.completedCount || 0} / 7 Aktivitas
           </span>
         </div>

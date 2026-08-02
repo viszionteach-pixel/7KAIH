@@ -84,17 +84,18 @@ export function recordDeletedBKNoteId(id: string) {
   localStorage.setItem(KEYS.DELETED_BK_NOTE_IDS, JSON.stringify(Array.from(ids)));
 }
 
-// Smart Merging: Remote Supabase updates take priority over stale local cache, while preserving unsynced local items
+// Smart Merging: Remote updates take priority over stale local cache, while preserving unsynced local items
 function mergeRemoteUsers(remoteUsers: User[]): User[] {
   const deleted = getDeletedUserIds();
   const localUsers = getStoredUsers();
   const mergedMap = new Map<string, User>();
 
-  // 1. Add remote users first (excluding tombstones and sample students with lowercase names)
   remoteUsers.forEach((ru) => {
     if (ru.role === 'siswa' && /[a-z]/.test(ru.name)) {
       recordDeletedUserId(ru.id);
-      if (!isRemoteUpdating) supabaseDeleteUser(ru.id);
+      if (!isRemoteUpdating) {
+        if (isSupabaseConfigured) supabaseDeleteUser(ru.id);
+      }
       return;
     }
     if (!deleted.has(ru.id)) {
@@ -102,11 +103,12 @@ function mergeRemoteUsers(remoteUsers: User[]): User[] {
     }
   });
 
-  // 2. Merge local users (if created locally and not yet synced)
   localUsers.forEach((lu) => {
     if (lu.role === 'siswa' && /[a-z]/.test(lu.name)) {
       recordDeletedUserId(lu.id);
-      if (!isRemoteUpdating) supabaseDeleteUser(lu.id);
+      if (!isRemoteUpdating) {
+        if (isSupabaseConfigured) supabaseDeleteUser(lu.id);
+      }
       return;
     }
     if (!deleted.has(lu.id)) {
@@ -114,7 +116,6 @@ function mergeRemoteUsers(remoteUsers: User[]): User[] {
         mergedMap.set(lu.id, lu);
       } else {
         const ru = mergedMap.get(lu.id)!;
-        // Remote Cloud data (ru) takes precedence over stale local cache
         mergedMap.set(lu.id, { ...lu, ...ru });
       }
     }
@@ -142,7 +143,6 @@ function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
         mergedMap.set(ll.id, ll);
       } else {
         const rl = mergedMap.get(ll.id)!;
-        // Remote Cloud data (rl) takes precedence over stale local cache
         mergedMap.set(ll.id, { ...ll, ...rl });
       }
     }
@@ -155,7 +155,6 @@ function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
 
 function mergeRemoteSchoolConfig(remoteConfig: MonthlyReportConfig): MonthlyReportConfig {
   const localConfig = getStoredSchoolConfig();
-  // Remote Cloud config takes precedence over stale local cache
   const merged = { ...localConfig, ...remoteConfig };
   localStorage.setItem(KEYS.SCHOOL_CONFIG, JSON.stringify(merged));
   return merged;
@@ -199,6 +198,7 @@ export async function forceFetchFromCloud(): Promise<boolean> {
   if (!isSupabaseConfigured) return false;
   try {
     isRemoteUpdating = true;
+
     const [cloudUsers, cloudLogs, cloudConfig, cloudNotes, cloudPasswords] = await Promise.all([
       supabaseFetchUsers(),
       supabaseFetchLogs(),
@@ -207,19 +207,15 @@ export async function forceFetchFromCloud(): Promise<boolean> {
       supabaseFetchCustomPasswords(),
     ]);
 
-    let changed = false;
     if (cloudUsers && cloudUsers.length > 0) {
       mergeRemoteUsers(cloudUsers);
-      changed = true;
     } else {
-      // Seed initial users to Supabase if Supabase table is empty
       const localUsers = getStoredUsers();
       supabaseSaveUsers(localUsers);
     }
 
     if (cloudLogs && cloudLogs.length > 0) {
       mergeRemoteLogs(cloudLogs);
-      changed = true;
     } else {
       const localLogs = getStoredLogs();
       if (localLogs.length > 0) supabaseSaveLogs(localLogs);
@@ -227,7 +223,6 @@ export async function forceFetchFromCloud(): Promise<boolean> {
 
     if (cloudConfig) {
       mergeRemoteSchoolConfig(cloudConfig);
-      changed = true;
     } else {
       const localConfig = getStoredSchoolConfig();
       supabaseSaveSchoolConfig(localConfig);
@@ -235,12 +230,10 @@ export async function forceFetchFromCloud(): Promise<boolean> {
 
     if (cloudNotes && cloudNotes.length > 0) {
       mergeRemoteBKNotes(cloudNotes);
-      changed = true;
     }
 
     if (cloudPasswords) {
       mergeRemotePasswords(cloudPasswords);
-      changed = true;
     }
 
     isRemoteUpdating = false;
@@ -253,7 +246,7 @@ export async function forceFetchFromCloud(): Promise<boolean> {
   }
 }
 
-// Initialize Supabase Synchronization across all devices
+// Initialize Realtime Synchronization across all devices via Supabase
 let isInitialized = false;
 export async function initFirebaseRealtimeSync() {
   if (isInitialized) return;
@@ -264,7 +257,7 @@ export async function initFirebaseRealtimeSync() {
   // 1. Initial Cloud Sync
   await forceFetchFromCloud();
 
-  // 2. Realtime Subscription from Supabase
+  // 2. Realtime Listener from Supabase
   subscribeToSupabaseRealtime(() => {
     forceFetchFromCloud();
   });
@@ -280,10 +273,10 @@ export async function initFirebaseRealtimeSync() {
       }
     });
 
-    // 4. Background auto-polling timer every 10 seconds for instant device cross-sync
+    // 4. Background auto-polling timer every 5 seconds for instant device cross-sync
     setInterval(() => {
       forceFetchFromCloud();
-    }, 10000);
+    }, 5000);
   }
 }
 
@@ -398,10 +391,10 @@ export function saveStoredUsers(users: User[]): void {
 
   if (!isRemoteUpdating) {
     if (changedOrNewUsers.length > 0) {
-      supabaseSaveUsers(changedOrNewUsers);
+      if (isSupabaseConfigured) supabaseSaveUsers(changedOrNewUsers);
     }
     deletedIds.forEach((id) => {
-      supabaseDeleteUser(id);
+      if (isSupabaseConfigured) supabaseDeleteUser(id);
     });
   }
 }
@@ -422,7 +415,7 @@ export function saveSingleUser(user: User): void {
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    supabaseSaveUsers([user]);
+    if (isSupabaseConfigured) supabaseSaveUsers([user]);
   }
 }
 
@@ -467,7 +460,7 @@ export function saveStoredLogs(logs: KAIHEntry[]): void {
   notifyDataChanged();
 
   if (!isRemoteUpdating && changedOrNewLogs.length > 0) {
-    supabaseSaveLogs(changedOrNewLogs);
+    if (isSupabaseConfigured) supabaseSaveLogs(changedOrNewLogs);
   }
 }
 
@@ -486,7 +479,7 @@ export function addOrUpdateLog(entry: KAIHEntry): KAIHEntry[] {
   localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    supabaseSaveLogs([entry]);
+    if (isSupabaseConfigured) supabaseSaveLogs([entry]);
   }
   return logs;
 }
@@ -504,7 +497,7 @@ export function saveStoredSchoolConfig(config: MonthlyReportConfig): void {
   localStorage.setItem(KEYS.SCHOOL_CONFIG, JSON.stringify(config));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    supabaseSaveSchoolConfig(config);
+    if (isSupabaseConfigured) supabaseSaveSchoolConfig(config);
   }
 }
 
@@ -523,7 +516,7 @@ export function saveBKNote(note: BKCounselingNote): BKCounselingNote[] {
   localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(notes));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    supabaseSaveBKNotes(notes as any);
+    if (isSupabaseConfigured) supabaseSaveBKNotes(notes as any);
   }
   return notes;
 }
@@ -581,7 +574,7 @@ export function saveCustomPassword(userId: string, newPass: string): void {
   localStorage.setItem(KEYS.CUSTOM_PASSWORDS, JSON.stringify(map));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    supabaseSaveCustomPassword(userId, newPass);
+    if (isSupabaseConfigured) supabaseSaveCustomPassword(userId, newPass);
   }
 }
 
