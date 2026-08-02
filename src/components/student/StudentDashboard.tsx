@@ -68,6 +68,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
   const [tidurNotes, setTidurNotes] = useState('');
 
   const isLoadedRef = React.useRef(false);
+  const isSelfSavingRef = React.useRef(false);
 
   // Load logs on mount and when date changes or when data updates remotely
   useEffect(() => {
@@ -76,6 +77,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
       const allLogs = getStoredLogs();
       const myLogs = allLogs.filter((l) => l.studentId === currentUser.id);
       setLogs(myLogs);
+
+      // Skip resetting form controls if the update was triggered by local student edits
+      if (isSelfSavingRef.current) {
+        return;
+      }
 
       const existing = myLogs.find((l) => l.date === selectedDate);
       if (existing) {
@@ -133,9 +139,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
     };
 
     loadLogs();
-    window.addEventListener('kaih_data_updated', loadLogs);
+    const handleDataUpdated = () => {
+      if (isSelfSavingRef.current) return;
+      loadLogs();
+    };
+
+    window.addEventListener('kaih_data_updated', handleDataUpdated);
     return () => {
-      window.removeEventListener('kaih_data_updated', loadLogs);
+      window.removeEventListener('kaih_data_updated', handleDataUpdated);
     };
   }, [currentUser.id, selectedDate]);
 
@@ -157,7 +168,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
       id: currentEntry?.id || `log-${currentUser.id}-${selectedDate}`,
       studentId: currentUser.id,
       date: selectedDate,
-      fillTimestamp: new Date().toISOString(),
+      fillTimestamp: currentEntry?.fillTimestamp || new Date().toISOString(),
       bangunPagi: {
         checked: bangunPagiChecked,
         jamBangun,
@@ -205,13 +216,21 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
     };
   };
 
-  // Realtime Auto-Sync on any checklist toggle/input change
+  // Realtime Auto-Sync on any checklist toggle/input change (debounced)
   useEffect(() => {
     if (!isLoadedRef.current) return;
-    const newEntry = buildCurrentEntry();
-    const updated = addOrUpdateLog(newEntry);
-    setLogs(updated.filter((l) => l.studentId === currentUser.id));
-    setCurrentEntry(newEntry);
+    const timer = setTimeout(() => {
+      isSelfSavingRef.current = true;
+      const newEntry = buildCurrentEntry();
+      const updated = addOrUpdateLog(newEntry);
+      setLogs(updated.filter((l) => l.studentId === currentUser.id));
+      setCurrentEntry(newEntry);
+      setTimeout(() => {
+        isSelfSavingRef.current = false;
+      }, 150);
+    }, 300);
+
+    return () => clearTimeout(timer);
   }, [
     bangunPagiChecked, jamBangun, bangunNotes,
     beribadahChecked, selectedAgama, sholatIslam, nonIslamData,
@@ -225,13 +244,17 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
   // Handle Manual Save Button Click (shows toast)
   const handleSaveForm = (e: React.FormEvent) => {
     e.preventDefault();
+    isSelfSavingRef.current = true;
     const newEntry = buildCurrentEntry();
     const updated = addOrUpdateLog(newEntry);
     setLogs(updated.filter((l) => l.studentId === currentUser.id));
     setCurrentEntry(newEntry);
 
     setIsSavedToast(true);
-    setTimeout(() => setIsSavedToast(false), 3000);
+    setTimeout(() => {
+      setIsSavedToast(false);
+      isSelfSavingRef.current = false;
+    }, 3000);
   };
 
   const schoolConfig = getStoredSchoolConfig();

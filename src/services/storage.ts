@@ -324,10 +324,12 @@ export async function initFirebaseRealtimeSync() {
       }
     });
 
-    // 4. Background auto-polling timer every 5 seconds for instant device cross-sync
+    // 4. Background auto-polling timer every 15 seconds when active
     setInterval(() => {
-      forceFetchFromCloud();
-    }, 5000);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        forceFetchFromCloud();
+      }
+    }, 15000);
   }
 }
 
