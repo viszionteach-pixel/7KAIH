@@ -1,16 +1,270 @@
-// Firebase Firestore cloud storage disabled by request - using Supabase only.
-export const isFirebaseConfigured = false;
-export async function firebaseSaveUsers(): Promise<boolean> { return false; }
-export async function firebaseDeleteUser(): Promise<boolean> { return false; }
-export async function firebaseFetchUsers(): Promise<null> { return null; }
-export async function firebaseSaveLogs(): Promise<boolean> { return false; }
-export async function firebaseFetchLogs(): Promise<null> { return null; }
-export async function firebaseSaveSchoolConfig(): Promise<boolean> { return false; }
-export async function firebaseFetchSchoolConfig(): Promise<null> { return null; }
-export async function firebaseSaveBKNotes(): Promise<boolean> { return false; }
-export async function firebaseFetchBKNotes(): Promise<null> { return null; }
-export async function firebaseSaveCustomPassword(): Promise<boolean> { return false; }
-export async function firebaseFetchCustomPasswords(): Promise<null> { return null; }
-export function subscribeToFirebaseRealtime(): () => void { return () => {}; }
+import { initializeApp, getApps } from 'firebase/app';
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  collection,
+  getDocs,
+  writeBatch,
+  onSnapshot
+} from 'firebase/firestore';
+import { User, KAIHEntry, MonthlyReportConfig, BKCounselingNote } from '../types';
 
+const metaEnv = (import.meta as any).env || {};
 
+const firebaseConfig = {
+  apiKey: metaEnv.VITE_FIREBASE_API_KEY || "AIzaSyAvmuax4zhITaMq9Ya3kGWDZvmVL5lLR-A",
+  authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN || "school-6356a.firebaseapp.com",
+  projectId: metaEnv.VITE_FIREBASE_PROJECT_ID || "school-6356a",
+  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || "school-6356a.firebasestorage.app",
+  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || "547857176289",
+  appId: metaEnv.VITE_FIREBASE_APP_ID || "1:547857176289:web:0d1de8ada0b9b9786589a0",
+  measurementId: metaEnv.VITE_FIREBASE_MEASUREMENT_ID || "G-4SNC5HLSF4"
+};
+
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
+export const db = getFirestore(app);
+export const isFirebaseConfigured = true;
+
+// Helper to prevent Firestore offline/network hangs
+function withTimeout<T>(promise: Promise<T>, ms = 4000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Firebase operation timed out'));
+    }, ms);
+    promise
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
+// ================= USERS =================
+export async function firebaseSaveUsers(users: User[]): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const batch = writeBatch(db);
+    users.forEach((u) => {
+      const userRef = doc(db, 'kaih_users', u.id);
+      batch.set(userRef, { ...u, updatedAt: new Date().toISOString() }, { merge: true });
+    });
+    await withTimeout(batch.commit());
+    return true;
+  } catch (err) {
+    console.warn('[Firebase Save Users Warning]', err);
+    return false;
+  }
+}
+
+export async function firebaseSyncAndCleanUsers(activeUsers: User[]): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const activeIds = new Set(activeUsers.map((u) => u.id));
+    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_users')));
+    const existingDocs = snapshot.docs;
+    
+    if (existingDocs.length > 0) {
+      const activeStudents = activeUsers.filter((u) => u.role === 'siswa');
+      const existingStudents = existingDocs.filter((d) => (d.data() as User).role === 'siswa');
+
+      let orphanedDocs = existingDocs.filter((d) => !activeIds.has(d.id));
+      if (activeStudents.length === 0 && existingStudents.length > 0) {
+        orphanedDocs = existingDocs.filter((d) => (d.data() as User).role !== 'siswa' && !activeIds.has(d.id));
+      }
+
+      if (orphanedDocs.length > 0) {
+        const batch = writeBatch(db);
+        orphanedDocs.forEach((d) => batch.delete(d.ref));
+        await withTimeout(batch.commit());
+      }
+    }
+    return await firebaseSaveUsers(activeUsers);
+  } catch (err) {
+    console.warn('[Firebase Sync and Clean Users Warning]', err);
+    return false;
+  }
+}
+
+export async function firebaseDeleteUser(userId: string): Promise<boolean> {
+  if (!db) return false;
+  try {
+    await withTimeout(deleteDoc(doc(db, 'kaih_users', userId)));
+    return true;
+  } catch (err) {
+    console.warn('[Firebase Delete User Warning]', err);
+    return false;
+  }
+}
+
+export async function firebaseFetchUsers(): Promise<User[] | null> {
+  if (!db) return null;
+  try {
+    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_users')));
+    if (snapshot.empty) return null;
+    const users: User[] = snapshot.docs.map((d) => {
+      const data = d.data();
+      return (data.data ? data.data : data) as User;
+    });
+    return users;
+  } catch (err) {
+    console.warn('[Firebase Fetch Users Warning]', err);
+    return null;
+  }
+}
+
+// ================= LOGS =================
+export async function firebaseSaveLogs(logs: KAIHEntry[]): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const batch = writeBatch(db);
+    logs.forEach((log) => {
+      const logRef = doc(db, 'kaih_logs', log.id);
+      batch.set(logRef, { ...log, updatedAt: new Date().toISOString() }, { merge: true });
+    });
+    await withTimeout(batch.commit());
+    return true;
+  } catch (err) {
+    console.warn('[Firebase Save Logs Warning]', err);
+    return false;
+  }
+}
+
+export async function firebaseSyncAndCleanLogs(activeLogs: KAIHEntry[]): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const activeIds = new Set(activeLogs.map((l) => l.id));
+    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_logs')));
+    const orphanedDocs = snapshot.docs.filter((d) => !activeIds.has(d.id));
+
+    if (orphanedDocs.length > 0) {
+      const batch = writeBatch(db);
+      orphanedDocs.forEach((d) => batch.delete(d.ref));
+      await withTimeout(batch.commit());
+    }
+    return await firebaseSaveLogs(activeLogs);
+  } catch (err) {
+    console.warn('[Firebase Sync and Clean Logs Warning]', err);
+    return false;
+  }
+}
+
+export async function firebaseFetchLogs(): Promise<KAIHEntry[] | null> {
+  if (!db) return null;
+  try {
+    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_logs')));
+    if (snapshot.empty) return null;
+    const logs: KAIHEntry[] = snapshot.docs.map((d) => {
+      const data = d.data();
+      return (data.data ? data.data : data) as KAIHEntry;
+    });
+    return logs;
+  } catch (err) {
+    console.warn('[Firebase Fetch Logs Warning]', err);
+    return null;
+  }
+}
+
+// ================= SCHOOL CONFIG =================
+export async function firebaseSaveSchoolConfig(config: MonthlyReportConfig): Promise<boolean> {
+  if (!db) return false;
+  try {
+    await withTimeout(setDoc(doc(db, 'kaih_school_config', 'main'), { config, updatedAt: new Date().toISOString() }));
+    return true;
+  } catch (err) {
+    console.warn('[Firebase Save School Config Warning]', err);
+    return false;
+  }
+}
+
+export async function firebaseFetchSchoolConfig(): Promise<MonthlyReportConfig | null> {
+  if (!db) return null;
+  try {
+    const docSnap = await withTimeout(getDoc(doc(db, 'kaih_school_config', 'main')));
+    if (!docSnap.exists()) return null;
+    return docSnap.data().config as MonthlyReportConfig;
+  } catch (err) {
+    console.warn('[Firebase Fetch School Config Warning]', err);
+    return null;
+  }
+}
+
+// ================= BK NOTES =================
+export async function firebaseSaveBKNotes(notes: BKCounselingNote[]): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const batch = writeBatch(db);
+    notes.forEach((note) => {
+      const noteRef = doc(db, 'kaih_bk_notes', note.id);
+      batch.set(noteRef, { ...note, updatedAt: new Date().toISOString() }, { merge: true });
+    });
+    await withTimeout(batch.commit());
+    return true;
+  } catch (err) {
+    console.warn('[Firebase Save BK Notes Warning]', err);
+    return false;
+  }
+}
+
+export async function firebaseFetchBKNotes(): Promise<BKCounselingNote[] | null> {
+  if (!db) return null;
+  try {
+    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_bk_notes')));
+    if (snapshot.empty) return null;
+    const notes: BKCounselingNote[] = snapshot.docs.map((d) => d.data() as BKCounselingNote);
+    return notes;
+  } catch (err) {
+    console.warn('[Firebase Fetch BK Notes Warning]', err);
+    return null;
+  }
+}
+
+// ================= CUSTOM PASSWORDS =================
+export async function firebaseSaveCustomPassword(userId: string, pass: string): Promise<boolean> {
+  if (!db) return false;
+  try {
+    await withTimeout(setDoc(doc(db, 'kaih_passwords', userId), { password: pass, userId, updatedAt: new Date().toISOString() }));
+    return true;
+  } catch (err) {
+    console.warn('[Firebase Save Custom Password Warning]', err);
+    return false;
+  }
+}
+
+export async function firebaseFetchCustomPasswords(): Promise<Record<string, string> | null> {
+  if (!db) return null;
+  try {
+    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_passwords')));
+    if (snapshot.empty) return null;
+    const map: Record<string, string> = {};
+    snapshot.docs.forEach((d) => {
+      const data = d.data();
+      if (data.userId && data.password) {
+        map[data.userId] = data.password;
+      }
+    });
+    return map;
+  } catch (err) {
+    console.warn('[Firebase Fetch Custom Passwords Warning]', err);
+    return null;
+  }
+}
+
+// ================= REALTIME SUBSCRIPTION =================
+export function subscribeToFirebaseRealtime(onDataChange: () => void): () => void {
+  if (!db) return () => {};
+  try {
+    const unsub = onSnapshot(collection(db, 'kaih_logs'), () => {
+      onDataChange();
+    });
+    return unsub;
+  } catch {
+    return () => {};
+  }
+}
