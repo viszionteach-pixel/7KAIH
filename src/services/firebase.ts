@@ -39,13 +39,17 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 
+const targetDatabaseId = metaEnv.VITE_FIREBASE_DATABASE_ID || appletConfig.firestoreDatabaseId || "(default)";
+
 export const db = (() => {
   try {
-    return initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
-    });
+    return initializeFirestore(
+      app,
+      { experimentalAutoDetectLongPolling: true },
+      targetDatabaseId
+    );
   } catch {
-    return getFirestore(app);
+    return getFirestore(app, targetDatabaseId);
   }
 })();
 
@@ -405,6 +409,7 @@ export interface FirestoreDiagnosticResult {
   timestamp: string;
   isAppInitialized: boolean;
   projectId: string;
+  databaseId: string;
   dbInitialized: boolean;
   onlineStatus: boolean;
   collections: {
@@ -430,6 +435,7 @@ export async function runFirestoreDiagnostics(): Promise<FirestoreDiagnosticResu
   console.log(`%c[Firebase Config]`, 'color: #3b82f6; font-weight: bold;', {
     appName: app.name,
     projectId,
+    databaseId: targetDatabaseId,
     authDomain: firebaseConfig.authDomain,
     apiKeyProvided: !!firebaseConfig.apiKey,
     online: navigator.onLine
@@ -534,6 +540,7 @@ export async function runFirestoreDiagnostics(): Promise<FirestoreDiagnosticResu
     timestamp: new Date().toISOString(),
     isAppInitialized: !!app,
     projectId,
+    databaseId: targetDatabaseId,
     dbInitialized: !!db,
     onlineStatus: navigator.onLine,
     collections: results,

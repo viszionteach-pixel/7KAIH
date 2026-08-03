@@ -94,8 +94,10 @@ export const FirestoreDiagnostics: React.FC = () => {
               </span>
             </div>
 
-            <div className="text-xs text-slate-400 font-mono">
-              Project ID: <span className="text-white font-semibold">{diagnosticResult.projectId}</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-slate-400 font-mono">
+              <div>Project: <span className="text-white font-semibold">{diagnosticResult.projectId}</span></div>
+              <span className="hidden sm:inline text-slate-600">•</span>
+              <div>DB Instance: <span className="text-amber-300 font-semibold">{diagnosticResult.databaseId}</span></div>
             </div>
           </div>
 
