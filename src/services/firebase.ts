@@ -88,7 +88,7 @@ async function testConnection() {
 testConnection();
 
 // Helper to prevent Firestore offline/network hangs
-function withTimeout<T>(promise: Promise<T>, ms = 6000): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error('Firebase operation timed out'));
@@ -108,7 +108,7 @@ function withTimeout<T>(promise: Promise<T>, ms = 6000): Promise<T> {
 // Fetch helper with IndexedDB cache fallback on timeout or error
 async function fetchDocsWithFallback(colRef: any) {
   try {
-    return await withTimeout(getDocs(colRef), 6000);
+    return await withTimeout(getDocs(colRef), 10000);
   } catch (err) {
     try {
       const cacheSnap = await getDocsFromCache(colRef);
@@ -120,7 +120,7 @@ async function fetchDocsWithFallback(colRef: any) {
 
 async function fetchDocWithFallback(docRef: any) {
   try {
-    return await withTimeout(getDoc(docRef), 6000);
+    return await withTimeout(getDoc(docRef), 10000);
   } catch (err) {
     try {
       const cacheSnap = await getDocFromCache(docRef);
@@ -135,14 +135,15 @@ async function commitDocsInBatches<T>(
   items: T[],
   processItem: (batch: ReturnType<typeof writeBatch>, item: T) => void
 ): Promise<boolean> {
-  if (!db || items.length === 0) return true;
+  if (!db) return false;
+  if (items.length === 0) return true;
   try {
     const chunkSize = 400;
     for (let i = 0; i < items.length; i += chunkSize) {
       const chunk = items.slice(i, i + chunkSize);
       const batch = writeBatch(db);
       chunk.forEach((item) => processItem(batch, item));
-      await withTimeout(batch.commit());
+      await withTimeout(batch.commit(), 15000);
     }
     return true;
   } catch (err) {
@@ -153,7 +154,8 @@ async function commitDocsInBatches<T>(
 
 // ================= USERS =================
 export async function firebaseSaveUsers(users: User[]): Promise<boolean> {
-  if (!db || users.length === 0) return false;
+  if (!db) return false;
+  if (users.length === 0) return true;
   return commitDocsInBatches(users, (batch, u) => {
     const userRef = doc(db, 'kaih_users', u.id);
     batch.set(userRef, { ...u, updatedAt: new Date().toISOString() }, { merge: true });
@@ -164,8 +166,15 @@ export async function firebaseSyncAndCleanUsers(activeUsers: User[]): Promise<bo
   if (!db) return false;
   try {
     const activeIds = new Set(activeUsers.map((u) => u.id));
-    const snapshot = await fetchDocsWithFallback(collection(db, 'kaih_users'));
-    const existingDocs = snapshot.docs;
+    let existingDocs: any[] = [];
+    try {
+      const snapshot = await fetchDocsWithFallback(collection(db, 'kaih_users'));
+      if (snapshot && snapshot.docs) {
+        existingDocs = snapshot.docs;
+      }
+    } catch {
+      // If fetching remote fails, proceed to save active users directly
+    }
     
     if (existingDocs.length > 0) {
       const activeStudents = activeUsers.filter((u) => u.role === 'siswa');
@@ -218,7 +227,8 @@ export async function firebaseFetchUsers(): Promise<User[] | null> {
 
 // ================= LOGS =================
 export async function firebaseSaveLogs(logs: KAIHEntry[]): Promise<boolean> {
-  if (!db || logs.length === 0) return false;
+  if (!db) return false;
+  if (logs.length === 0) return true;
   return commitDocsInBatches(logs, (batch, log) => {
     const logRef = doc(db, 'kaih_logs', log.id);
     batch.set(logRef, { ...log, updatedAt: new Date().toISOString() }, { merge: true });
@@ -229,13 +239,23 @@ export async function firebaseSyncAndCleanLogs(activeLogs: KAIHEntry[]): Promise
   if (!db) return false;
   try {
     const activeIds = new Set(activeLogs.map((l) => l.id));
-    const snapshot = await fetchDocsWithFallback(collection(db, 'kaih_logs'));
-    const orphanedDocs = snapshot.docs.filter((d) => !activeIds.has(d.id));
+    let existingDocs: any[] = [];
+    try {
+      const snapshot = await fetchDocsWithFallback(collection(db, 'kaih_logs'));
+      if (snapshot && snapshot.docs) {
+        existingDocs = snapshot.docs;
+      }
+    } catch {
+      // If fetching remote fails, proceed to save active logs directly
+    }
 
-    if (orphanedDocs.length > 0) {
-      await commitDocsInBatches(orphanedDocs, (batch, d) => {
-        batch.delete(d.ref);
-      });
+    if (existingDocs.length > 0) {
+      const orphanedDocs = existingDocs.filter((d) => !activeIds.has(d.id));
+      if (orphanedDocs.length > 0) {
+        await commitDocsInBatches(orphanedDocs, (batch, d) => {
+          batch.delete(d.ref);
+        });
+      }
     }
     return await firebaseSaveLogs(activeLogs);
   } catch (err) {
@@ -287,7 +307,8 @@ export async function firebaseFetchSchoolConfig(): Promise<MonthlyReportConfig |
 
 // ================= BK NOTES =================
 export async function firebaseSaveBKNotes(notes: BKCounselingNote[]): Promise<boolean> {
-  if (!db || notes.length === 0) return false;
+  if (!db) return false;
+  if (notes.length === 0) return true;
   return commitDocsInBatches(notes, (batch, note) => {
     const noteRef = doc(db, 'kaih_bk_notes', note.id);
     batch.set(noteRef, { ...note, updatedAt: new Date().toISOString() }, { merge: true });
