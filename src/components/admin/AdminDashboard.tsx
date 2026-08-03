@@ -1332,14 +1332,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-extrabold mb-2">
               <CloudCheck className="w-4 h-4 text-emerald-600" />
-              Sinkronisasi Supabase Cloud Database Otomatis Active
+              Sinkronisasi Firebase Firestore & Cloud Database Aktif
             </div>
             <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
               <Database className="w-6 h-6 text-rose-600" />
               Pusat Backup & Pemulihan Data Menyeluruh
             </h3>
             <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-              Semua data sistem (pengguna, identitas & logo sekolah, password kustom, log pembiasaan KAIH, dan catatan BK) tersimpan di Supabase Cloud Database sehingga <strong>aman dari update webapp, redeploy server, maupun pembersihan memori browser</strong>.
+              Semua data sistem (pengguna, identitas & logo sekolah, password kustom, log pembiasaan KAIH, dan catatan BK) tersimpan di <strong>Google Firebase Firestore</strong> & Cloud Database sehingga <strong>aman dari update webapp, redeploy server, maupun pembersihan memori browser</strong>.
             </p>
           </div>
 
@@ -1547,17 +1547,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
             </div>
           </div>
 
-          {/* PURGE / CLEAN SUPABASE TABLES CARD */}
+          {/* PURGE / CLEAN & RESYNC FIRESTORE & CLOUD TABLES CARD */}
           <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl space-y-4">
             <div className="space-y-2">
               <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
                 <RefreshCw className="w-5 h-5" />
               </div>
               <h4 className="text-base font-extrabold text-slate-900">
-                3. Bersihkan Data Lama di Supabase Cloud (Resync Total)
+                3. Dorong & Sinkronkan Data ke Firebase Firestore (Resync Total)
               </h4>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Hapus semua baris pengguna/log lama yang sudah tidak aktif dari tabel Supabase Cloud (<code className="bg-amber-100 px-1 rounded">kaih_users</code> & <code className="bg-amber-100 px-1 rounded">kaih_logs</code>) dan timpa dengan data aktif aplikasi terkini.
+                Dorong dan kirim seluruh data lokal pengguna, log amalan, konfigurasi sekolah, catatan BK, serta password kustom ke <strong>Google Firebase Firestore</strong> dan database cloud terkait (<code className="bg-amber-100 px-1 rounded">kaih_users</code> & <code className="bg-amber-100 px-1 rounded">kaih_logs</code>).
               </p>
             </div>
 
@@ -1567,7 +1567,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
               className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
             >
               <RefreshCw className={`w-4 h-4 ${isResyncingSupabase ? 'animate-spin' : ''}`} />
-              {isResyncingSupabase ? 'Sedang Membersihkan & Menyinkronkan...' : 'Timpa & Bersihkan Tabel Supabase Sekarang'}
+              {isResyncingSupabase ? 'Sedang Menyinkronkan ke Firebase...' : 'Dorong & Sinkronkan Data ke Firebase Firestore Sekarang'}
             </button>
           </div>
 

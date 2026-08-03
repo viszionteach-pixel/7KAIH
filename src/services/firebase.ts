@@ -2,6 +2,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import {
   initializeFirestore,
   getFirestore,
+  setLogLevel,
   doc,
   getDoc,
   setDoc,
@@ -11,6 +12,11 @@ import {
   writeBatch,
   onSnapshot
 } from 'firebase/firestore';
+
+// Suppress internal Firestore connection warnings in browser logs
+try {
+  setLogLevel('silent');
+} catch {}
 import { User, KAIHEntry, MonthlyReportConfig, BKCounselingNote } from '../types';
 
 const metaEnv = (import.meta as any).env || {};
