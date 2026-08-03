@@ -55,19 +55,40 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
   };
 
   // Filter students belonging to this class
-  const classStudents = allUsers.filter(
-    (u) => u.role === 'siswa' && u.assignedClass && u.assignedClass.trim().toUpperCase() === assignedClass.trim().toUpperCase()
-  );
+  const classStudents = React.useMemo(() => {
+    const targetCls = assignedClass.trim().toUpperCase();
+    return allUsers.filter(
+      (u) => u.role === 'siswa' && u.assignedClass && u.assignedClass.trim().toUpperCase() === targetCls
+    );
+  }, [allUsers, assignedClass]);
 
-  const filteredStudents = classStudents.filter((s) =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredStudents = React.useMemo(() => {
+    const sTerm = searchTerm.toLowerCase();
+    return classStudents.filter((s) => s.name.toLowerCase().includes(sTerm));
+  }, [classStudents, searchTerm]);
+
+  // Set of student IDs/names for fast lookup
+  const classStudentIdSet = React.useMemo(() => {
+    const set = new Set<string>();
+    classStudents.forEach((s) => {
+      if (s.id) set.add(s.id.trim().toLowerCase());
+      if (s.username) set.add(s.username.trim().toLowerCase());
+      if (s.name) set.add(s.name.trim().toLowerCase());
+    });
+    return set;
+  }, [classStudents]);
 
   // Filter logs for this class
-  const classLogs = allLogs.filter((l) =>
-    classStudents.some((s) => isStudentLog(l.studentId, s))
-  );
-  const dailyClassLogs = classLogs.filter((l) => l.date === selectedDate);
+  const classLogs = React.useMemo(() => {
+    return allLogs.filter((l) => {
+      if (!l.studentId) return false;
+      return classStudentIdSet.has(l.studentId.trim().toLowerCase());
+    });
+  }, [allLogs, classStudentIdSet]);
+
+  const dailyClassLogs = React.useMemo(() => {
+    return classLogs.filter((l) => l.date === selectedDate);
+  }, [classLogs, selectedDate]);
 
   // Daily statistics for this class
   const totalStudents = classStudents.length || 1;
@@ -79,27 +100,29 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
   const averageCompletedCount = Math.round((dailyAveragePct / 100) * 7);
 
   // Calculate percentage per habit for daily bar chart
-  const aggregatedBarData = HABIT_NAMES.map((h) => {
-    let count = 0;
-    dailyClassLogs.forEach((l) => {
-      const isChecked = Boolean(
-        h.key === 'bangunPagi' ? l.bangunPagi?.checked :
-        h.key === 'beribadah' ? l.beribadah?.checked :
-        h.key === 'berolahraga' ? l.berolahraga?.checked :
-        h.key === 'makanSehat' ? l.makanSehat?.checked :
-        h.key === 'gemarBelajar' ? l.gemarBelajar?.checked :
-        h.key === 'bermasyarakat' ? l.bermasyarakat?.checked :
-        l.tidurCepat?.checked
-      );
-      if (isChecked) count++;
-    });
+  const aggregatedBarData = React.useMemo(() => {
+    return HABIT_NAMES.map((h) => {
+      let count = 0;
+      dailyClassLogs.forEach((l) => {
+        const isChecked = Boolean(
+          h.key === 'bangunPagi' ? l.bangunPagi?.checked :
+          h.key === 'beribadah' ? l.beribadah?.checked :
+          h.key === 'berolahraga' ? l.berolahraga?.checked :
+          h.key === 'makanSehat' ? l.makanSehat?.checked :
+          h.key === 'gemarBelajar' ? l.gemarBelajar?.checked :
+          h.key === 'bermasyarakat' ? l.bermasyarakat?.checked :
+          l.tidurCepat?.checked
+        );
+        if (isChecked) count++;
+      });
 
-    const pct = Math.round((count / totalStudents) * 100);
-    return {
-      habit: h.label,
-      percentage: pct,
-    };
-  });
+      const pct = Math.round((count / totalStudents) * 100);
+      return {
+        habit: h.label,
+        percentage: pct,
+      };
+    });
+  }, [dailyClassLogs, totalStudents]);
 
   const schoolConfig = getStoredSchoolConfig();
   const currentMonthNum = Number(selectedDate.split('-')[1]) || 7;

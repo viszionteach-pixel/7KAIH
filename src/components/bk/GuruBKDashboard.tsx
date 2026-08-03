@@ -47,49 +47,63 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
     };
   }, []);
 
-  const isStudentLog = (logStudentId: string, student: User) => {
-    if (!logStudentId || !student) return false;
-    const target = logStudentId.trim().toLowerCase();
-    return (
-      target === student.id.trim().toLowerCase() ||
-      (student.username && target === student.username.trim().toLowerCase()) ||
-      (student.name && target === student.name.trim().toLowerCase())
-    );
-  };
+  const allStudents = React.useMemo(() => {
+    return allUsers.filter((u) => u.role === 'siswa');
+  }, [allUsers]);
 
-  const allStudents = allUsers.filter((u) => u.role === 'siswa');
+  // Index daily logs by studentId / username / name for O(1) fast lookup
+  const dailyLogsMap = React.useMemo(() => {
+    const map = new Map<string, KAIHEntry>();
+    allLogs.forEach((l) => {
+      if (l.date === selectedDate && l.studentId) {
+        map.set(l.studentId.trim().toLowerCase(), l);
+      }
+    });
+    return map;
+  }, [allLogs, selectedDate]);
+
+  const getStudentLog = React.useCallback((student: User): KAIHEntry | undefined => {
+    if (!student) return undefined;
+    const sId = student.id ? student.id.trim().toLowerCase() : '';
+    const sUsername = student.username ? student.username.trim().toLowerCase() : '';
+    const sName = student.name ? student.name.trim().toLowerCase() : '';
+    return dailyLogsMap.get(sId) || (sUsername ? dailyLogsMap.get(sUsername) : undefined) || (sName ? dailyLogsMap.get(sName) : undefined);
+  }, [dailyLogsMap]);
 
   // Filter students by class and search
-  const filteredStudents = allStudents.filter((student) => {
-    const matchesClass =
-      selectedClassFilter === 'ALL' ||
-      (student.assignedClass &&
-        student.assignedClass.trim().toUpperCase() === selectedClassFilter.trim().toUpperCase());
-    const matchesSearch =
-      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (student.assignedClass && student.assignedClass.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredStudents = React.useMemo(() => {
+    const sTerm = searchTerm.toLowerCase();
+    const classFilter = selectedClassFilter.trim().toUpperCase();
 
-    if (!matchesClass || !matchesSearch) return false;
+    return allStudents.filter((student) => {
+      const matchesClass =
+        selectedClassFilter === 'ALL' ||
+        (student.assignedClass &&
+          student.assignedClass.trim().toUpperCase() === classFilter);
+      const matchesSearch =
+        !sTerm ||
+        student.name.toLowerCase().includes(sTerm) ||
+        (student.assignedClass && student.assignedClass.toLowerCase().includes(sTerm));
 
-    if (showLowOnly) {
-      const log = allLogs.find(
-        (l) => isStudentLog(l.studentId, student) && l.date === selectedDate
-      );
-      const score = log ? log.scorePercentage : 0;
-      return score < 50;
-    }
+      if (!matchesClass || !matchesSearch) return false;
 
-    return true;
-  });
+      if (showLowOnly) {
+        const log = getStudentLog(student);
+        const score = log ? log.scorePercentage : 0;
+        return score < 50;
+      }
 
-  // Logs for current date
-  const dailyLogs = allLogs.filter((l) => l.date === selectedDate);
+      return true;
+    });
+  }, [allStudents, selectedClassFilter, searchTerm, showLowOnly, getStudentLog]);
 
   // Identify low compliance students (< 50% score) for alert banner
-  const lowComplianceStudents = allStudents.filter((student) => {
-    const log = dailyLogs.find((l) => isStudentLog(l.studentId, student));
-    return !log || log.scorePercentage < 50;
-  });
+  const lowComplianceStudents = React.useMemo(() => {
+    return allStudents.filter((student) => {
+      const log = getStudentLog(student);
+      return !log || log.scorePercentage < 50;
+    });
+  }, [allStudents, getStudentLog]);
 
   // Add BK Note
   const handleAddBKNote = (e: React.FormEvent) => {
@@ -264,7 +278,7 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
                 </tr>
               ) : (
                 filteredStudents.map((student, idx) => {
-                  const studentLog = dailyLogs.find((l) => isStudentLog(l.studentId, student));
+                  const studentLog = getStudentLog(student);
                   const isLow = !studentLog || studentLog.scorePercentage < 50;
 
                   return (
@@ -390,7 +404,15 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
       {selectedStudentForReport && (
         <MonthlyReportModal
           student={selectedStudentForReport}
-          logs={allLogs.filter((l) => isStudentLog(l.studentId, selectedStudentForReport))}
+          logs={allLogs.filter((l) => {
+            if (!l.studentId || !selectedStudentForReport) return false;
+            const target = l.studentId.trim().toLowerCase();
+            return (
+              target === selectedStudentForReport.id.trim().toLowerCase() ||
+              (selectedStudentForReport.username && target === selectedStudentForReport.username.trim().toLowerCase()) ||
+              (selectedStudentForReport.name && target === selectedStudentForReport.name.trim().toLowerCase())
+            );
+          })}
           month={Number(selectedDate.split('-')[1]) || 7}
           year={Number(selectedDate.split('-')[0]) || 2026}
           config={{

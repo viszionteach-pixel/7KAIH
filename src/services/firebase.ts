@@ -279,7 +279,9 @@ export function subscribeToFirebaseRealtime(onDataChange: () => void): () => voi
   try {
     const unsub = onSnapshot(
       collection(db, 'kaih_logs'),
-      () => {
+      (snapshot) => {
+        // Skip firing onDataChange if the snapshot originated from local pending writes
+        if (snapshot.metadata.hasPendingWrites) return;
         onDataChange();
       },
       (err) => {

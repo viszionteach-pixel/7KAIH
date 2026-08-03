@@ -17,35 +17,6 @@ import {
   firebaseFetchCustomPasswords,
   subscribeToFirebaseRealtime
 } from './firebase';
-import {
-  isSupabaseConfigured,
-  supabaseSaveUsers,
-  supabaseSyncAndCleanUsers,
-  supabaseDeleteUser,
-  supabaseFetchUsers,
-  supabaseSaveLogs,
-  supabaseSyncAndCleanLogs,
-  supabaseFetchLogs,
-  supabaseSaveSchoolConfig,
-  supabaseFetchSchoolConfig,
-  supabaseSaveBKNotes,
-  supabaseFetchBKNotes,
-  supabaseSaveCustomPassword,
-  supabaseFetchCustomPasswords,
-  subscribeToSupabaseRealtime
-} from './supabase';
-import {
-  aivenFetchUsers,
-  aivenSyncAndCleanUsers,
-  aivenFetchLogs,
-  aivenSyncAndCleanLogs,
-  aivenFetchSchoolConfig,
-  aivenSaveSchoolConfig,
-  aivenFetchBKNotes,
-  aivenSaveBKNotes,
-  aivenFetchCustomPasswords,
-  aivenSaveCustomPassword
-} from './aiven';
 
 const KEYS = {
   USERS: 'kaih_smpn10_users_v1',
@@ -184,9 +155,9 @@ function mergeRemoteUsers(remoteUsers: User[]): User[] {
   const result = Array.from(mergedMap.values());
   localStorage.setItem(KEYS.USERS, JSON.stringify(result));
 
-  // Push updated user list (including all official 32 Wali Kelas) to Supabase
-  if (isSupabaseConfigured) {
-    supabaseSaveUsers(result);
+  // Push updated user list to Firebase
+  if (!isRemoteUpdating) {
+    firebaseSaveUsers(result);
   }
 
   return result;
@@ -231,8 +202,8 @@ function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
   const result = Array.from(mergedMap.values());
   localStorage.setItem(KEYS.LOGS, JSON.stringify(result));
 
-  if (logsToPush.length > 0 && isSupabaseConfigured && !isRemoteUpdating) {
-    supabaseSaveLogs(logsToPush);
+  if (logsToPush.length > 0 && !isRemoteUpdating) {
+    firebaseSaveLogs(logsToPush);
   }
 
   return result;
@@ -278,87 +249,85 @@ function mergeRemotePasswords(remotePasswords: Record<string, string>) {
   localStorage.setItem(KEYS.CUSTOM_PASSWORDS, JSON.stringify(merged));
 }
 
-// Force sync directly from Cloud (Supabase and Aiven.io)
+// Force sync directly from Firebase Firestore
 export async function forceFetchFromCloud(): Promise<boolean> {
   try {
     isRemoteUpdating = true;
 
-    // Fetch parallelly from Firebase, Supabase and Aiven DB
+    const prevUsersStr = localStorage.getItem(KEYS.USERS) || '';
+    const prevLogsStr = localStorage.getItem(KEYS.LOGS) || '';
+    const prevConfigStr = localStorage.getItem(KEYS.SCHOOL_CONFIG) || '';
+    const prevNotesStr = localStorage.getItem(KEYS.BK_NOTES) || '';
+    const prevPassStr = localStorage.getItem(KEYS.CUSTOM_PASSWORDS) || '';
+
+    // Fetch parallelly from Firebase Firestore
     const [
-      fbUsers, fbLogs, fbConfig, fbNotes, fbPasswords,
-      cloudUsers, cloudLogs, cloudConfig, cloudNotes, cloudPasswords,
-      aivenUsers, aivenLogs, aivenConfig, aivenNotes, aivenPasswords
+      fbUsers, fbLogs, fbConfig, fbNotes, fbPasswords
     ] = await Promise.all([
       firebaseFetchUsers(),
       firebaseFetchLogs(),
       firebaseFetchSchoolConfig(),
       firebaseFetchBKNotes(),
-      firebaseFetchCustomPasswords(),
-      supabaseFetchUsers(),
-      supabaseFetchLogs(),
-      supabaseFetchSchoolConfig(),
-      supabaseFetchBKNotes(),
-      supabaseFetchCustomPasswords(),
-      aivenFetchUsers(),
-      aivenFetchLogs(),
-      aivenFetchSchoolConfig(),
-      aivenFetchBKNotes(),
-      aivenFetchCustomPasswords()
+      firebaseFetchCustomPasswords()
     ]);
 
-    const combinedUsers = [...(fbUsers || []), ...(cloudUsers || []), ...(aivenUsers || [])];
-    if (combinedUsers.length > 0) {
-      mergeRemoteUsers(combinedUsers);
+    if (fbUsers && fbUsers.length > 0) {
+      mergeRemoteUsers(fbUsers);
     } else {
       const localUsers = getStoredUsers();
       firebaseSyncAndCleanUsers(localUsers);
-      if (isSupabaseConfigured) supabaseSaveUsers(localUsers);
-      aivenSyncAndCleanUsers(localUsers);
     }
 
-    const combinedLogs = [...(fbLogs || []), ...(cloudLogs || []), ...(aivenLogs || [])];
-    if (combinedLogs.length > 0) {
-      mergeRemoteLogs(combinedLogs);
+    if (fbLogs && fbLogs.length > 0) {
+      mergeRemoteLogs(fbLogs);
     } else {
       const localLogs = getStoredLogs();
       if (localLogs.length > 0) {
         firebaseSyncAndCleanLogs(localLogs);
-        if (isSupabaseConfigured) supabaseSaveLogs(localLogs);
-        aivenSyncAndCleanLogs(localLogs);
       }
     }
 
-    const effectiveConfig = fbConfig || aivenConfig || cloudConfig;
-    if (effectiveConfig) {
-      mergeRemoteSchoolConfig(effectiveConfig);
+    if (fbConfig) {
+      mergeRemoteSchoolConfig(fbConfig);
     } else {
       const localConfig = getStoredSchoolConfig();
       firebaseSaveSchoolConfig(localConfig);
-      if (isSupabaseConfigured) supabaseSaveSchoolConfig(localConfig);
-      aivenSaveSchoolConfig(localConfig);
     }
 
-    const combinedNotes = [...(fbNotes || []), ...(cloudNotes || []), ...(aivenNotes || [])];
-    if (combinedNotes.length > 0) {
-      mergeRemoteBKNotes(combinedNotes);
+    if (fbNotes && fbNotes.length > 0) {
+      mergeRemoteBKNotes(fbNotes);
     }
 
-    const combinedPasswords = { ...(fbPasswords || {}), ...(cloudPasswords || {}), ...(aivenPasswords || {}) };
-    if (Object.keys(combinedPasswords).length > 0) {
-      mergeRemotePasswords(combinedPasswords);
+    if (fbPasswords && Object.keys(fbPasswords).length > 0) {
+      mergeRemotePasswords(fbPasswords);
     }
 
     isRemoteUpdating = false;
-    notifyDataChanged();
+
+    const currUsersStr = localStorage.getItem(KEYS.USERS) || '';
+    const currLogsStr = localStorage.getItem(KEYS.LOGS) || '';
+    const currConfigStr = localStorage.getItem(KEYS.SCHOOL_CONFIG) || '';
+    const currNotesStr = localStorage.getItem(KEYS.BK_NOTES) || '';
+    const currPassStr = localStorage.getItem(KEYS.CUSTOM_PASSWORDS) || '';
+
+    const hasChanged = prevUsersStr !== currUsersStr ||
+                       prevLogsStr !== currLogsStr ||
+                       prevConfigStr !== currConfigStr ||
+                       prevNotesStr !== currNotesStr ||
+                       prevPassStr !== currPassStr;
+
+    if (hasChanged) {
+      notifyDataChanged();
+    }
     return true;
   } catch (err) {
-    console.error('Failed to force sync from cloud databases:', err);
+    console.error('Failed to force sync from Firebase Firestore:', err);
     isRemoteUpdating = false;
     return false;
   }
 }
 
-// Initialize Realtime Synchronization across all devices via Firebase & Supabase
+// Initialize Realtime Synchronization across all devices via Firebase
 let isInitialized = false;
 export async function initFirebaseRealtimeSync() {
   if (isInitialized) return;
@@ -372,13 +341,6 @@ export async function initFirebaseRealtimeSync() {
     forceFetchFromCloud();
   });
 
-  // 3. Realtime Listener from Supabase
-  if (isSupabaseConfigured) {
-    subscribeToSupabaseRealtime(() => {
-      forceFetchFromCloud();
-    });
-  }
-
   // 3. Tab Focus & Visibility listener to instantly fetch latest data when device screen wakes or tab opens
   if (typeof window !== 'undefined') {
     window.addEventListener('focus', () => {
@@ -390,12 +352,12 @@ export async function initFirebaseRealtimeSync() {
       }
     });
 
-    // 4. Background auto-polling timer every 15 seconds when active
+    // 4. Background auto-polling timer every 60 seconds when active
     setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         forceFetchFromCloud();
       }
-    }, 15000);
+    }, 60000);
   }
 }
 
@@ -465,7 +427,7 @@ export function getStoredUsers(): User[] {
     if (modified) {
       localStorage.setItem(KEYS.USERS, JSON.stringify(filtered));
       if (!isRemoteUpdating) {
-        supabaseSaveUsers(filtered);
+        firebaseSaveUsers(filtered);
       }
     }
 
@@ -503,12 +465,14 @@ export function saveStoredUsers(users: User[]): void {
 
   if (!isRemoteUpdating) {
     firebaseSyncAndCleanUsers(users);
-    if (isSupabaseConfigured) supabaseSyncAndCleanUsers(users);
-    aivenSyncAndCleanUsers(users);
   }
 }
 
 export async function cleanAndResyncSupabaseCloud(): Promise<boolean> {
+  return cleanAndResyncFirebaseCloud();
+}
+
+export async function cleanAndResyncFirebaseCloud(): Promise<boolean> {
   try {
     isRemoteUpdating = true;
     const users = getStoredUsers();
@@ -522,34 +486,19 @@ export async function cleanAndResyncSupabaseCloud(): Promise<boolean> {
       firebaseSyncAndCleanLogs(logs),
       firebaseSaveSchoolConfig(config),
       firebaseSaveBKNotes(bkNotes),
-      aivenSyncAndCleanUsers(users),
-      aivenSyncAndCleanLogs(logs),
-      aivenSaveSchoolConfig(config),
-      aivenSaveBKNotes(bkNotes),
     ];
-
-    if (isSupabaseConfigured) {
-      tasks.push(
-        supabaseSyncAndCleanUsers(users),
-        supabaseSyncAndCleanLogs(logs),
-        supabaseSaveSchoolConfig(config),
-        supabaseSaveBKNotes(bkNotes)
-      );
-    }
 
     await Promise.all(tasks);
 
     for (const [userId, pass] of Object.entries(passwords)) {
       await firebaseSaveCustomPassword(userId, pass);
-      if (isSupabaseConfigured) await supabaseSaveCustomPassword(userId, pass);
-      await aivenSaveCustomPassword(userId, pass);
     }
 
     isRemoteUpdating = false;
     notifyDataChanged();
     return true;
   } catch (err) {
-    console.error('Failed to clean and resync cloud databases:', err);
+    console.error('Failed to clean and resync Firebase Firestore database:', err);
     isRemoteUpdating = false;
     return false;
   }
@@ -573,8 +522,6 @@ export function saveSingleUser(user: User): void {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     firebaseSaveUsers([user]);
-    if (isSupabaseConfigured) supabaseSaveUsers([user]);
-    aivenSyncAndCleanUsers(users);
   }
 }
 
@@ -620,8 +567,6 @@ export function saveStoredLogs(logs: KAIHEntry[]): void {
 
   if (!isRemoteUpdating && changedOrNewLogs.length > 0) {
     firebaseSaveLogs(changedOrNewLogs);
-    if (isSupabaseConfigured) supabaseSaveLogs(changedOrNewLogs);
-    aivenSyncAndCleanLogs(logs);
   }
 }
 
@@ -641,8 +586,6 @@ export function addOrUpdateLog(entry: KAIHEntry): KAIHEntry[] {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     firebaseSaveLogs([entry]);
-    if (isSupabaseConfigured) supabaseSaveLogs([entry]);
-    aivenSyncAndCleanLogs(logs);
   }
   return logs;
 }
@@ -661,8 +604,6 @@ export function saveStoredSchoolConfig(config: MonthlyReportConfig): void {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     firebaseSaveSchoolConfig(config);
-    if (isSupabaseConfigured) supabaseSaveSchoolConfig(config);
-    aivenSaveSchoolConfig(config);
   }
 }
 
@@ -682,8 +623,6 @@ export function saveBKNote(note: BKCounselingNote): BKCounselingNote[] {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     firebaseSaveBKNotes(notes);
-    if (isSupabaseConfigured) supabaseSaveBKNotes(notes as any);
-    aivenSaveBKNotes(notes);
   }
   return notes;
 }
@@ -742,8 +681,6 @@ export function saveCustomPassword(userId: string, newPass: string): void {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     firebaseSaveCustomPassword(userId, newPass);
-    if (isSupabaseConfigured) supabaseSaveCustomPassword(userId, newPass);
-    aivenSaveCustomPassword(userId, newPass);
   }
 }
 
@@ -837,7 +774,7 @@ export function importFullBackupJSON(jsonText: string): RestoreResult {
       if (!isRemoteUpdating) {
         Object.entries(data.customPasswords).forEach(([uid, pass]) => {
           if (typeof pass === 'string') {
-            supabaseSaveCustomPassword(uid, pass);
+            firebaseSaveCustomPassword(uid, pass);
           }
         });
       }
@@ -854,7 +791,7 @@ export function importFullBackupJSON(jsonText: string): RestoreResult {
       localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(data.bkNotes));
       bkNotesRestored = data.bkNotes.length;
       if (!isRemoteUpdating) {
-        supabaseSaveBKNotes(data.bkNotes as any);
+        firebaseSaveBKNotes(data.bkNotes);
       }
     }
 
@@ -862,7 +799,7 @@ export function importFullBackupJSON(jsonText: string): RestoreResult {
 
     return {
       success: true,
-      message: 'Restorasi data berhasil disinkronkan ke sistem dan Supabase Cloud!',
+      message: 'Restorasi data berhasil disinkronkan ke sistem dan Firebase Firestore!',
       stats: {
         usersCount: usersRestored,
         logsCount: logsRestored,

@@ -10,13 +10,8 @@ import { ALL_CLASSES } from '../../data/initialData';
 import {
   getStoredUsers, saveStoredUsers, getStoredSchoolConfig, saveStoredSchoolConfig,
   saveCustomPassword, getCustomPasswords, resetAllDataToDefault, getStoredLogs,
-  exportFullBackupJSON, importFullBackupJSON, cleanAndResyncSupabaseCloud, getStoredBKNotes
+  exportFullBackupJSON, importFullBackupJSON, cleanAndResyncFirebaseCloud, getStoredBKNotes
 } from '../../services/storage';
-import {
-  checkAivenStatus, setAivenConfigUrl, getSavedAivenUrl, AivenStatusResponse,
-  aivenFetchStats, AivenStats, aivenSyncAndCleanUsers, aivenSyncAndCleanLogs,
-  aivenSaveSchoolConfig, aivenSaveBKNotes, aivenSaveCustomPassword
-} from '../../services/aiven';
 import { StudentImportModal } from './StudentImportModal';
 import { ExportHabitsModal } from '../reports/ExportHabitsModal';
 
@@ -91,85 +86,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [lastActionInfo, setLastActionInfo] = useState<string | null>(null);
   const [saveSuccessNotification, setSaveSuccessNotification] = useState<string | null>(null);
-  const [isResyncingSupabase, setIsResyncingSupabase] = useState<boolean>(false);
-
-  // Aiven Database State
-  const [aivenInputUrl, setAivenInputUrl] = useState<string>(getSavedAivenUrl());
-  const [aivenStatus, setAivenStatus] = useState<AivenStatusResponse | null>(null);
-  const [aivenStats, setAivenStats] = useState<AivenStats | null>(null);
-  const [isTestingAiven, setIsTestingAiven] = useState<boolean>(false);
-  const [isSavingAiven, setIsSavingAiven] = useState<boolean>(false);
-  const [isPushingAiven, setIsPushingAiven] = useState<boolean>(false);
-
-  const refreshAivenStats = async () => {
-    const stats = await aivenFetchStats();
-    setAivenStats(stats);
-  };
-
-  useEffect(() => {
-    checkAivenStatus().then((res) => {
-      setAivenStatus(res);
-      if (res.connected) {
-        refreshAivenStats();
-      }
-    });
-  }, []);
-
-  const handleTestAivenConnection = async () => {
-    setIsTestingAiven(true);
-    const res = await checkAivenStatus(aivenInputUrl.trim(), false);
-    setAivenStatus(res);
-    setIsTestingAiven(false);
-    if (res.connected) {
-      refreshAivenStats();
-      alert('✓ Koneksi ke Aiven PostgreSQL berhasil terhubung!');
-    } else {
-      alert(`❌ Koneksi gagal: ${res.error || 'Periksa URL koneksi Aiven Anda'}`);
-    }
-  };
-
-  const handleSaveAivenConnection = async () => {
-    setIsSavingAiven(true);
-    const res = await setAivenConfigUrl(aivenInputUrl.trim());
-    setIsSavingAiven(false);
-    if (res.success) {
-      const statusRes = await checkAivenStatus(aivenInputUrl.trim(), true);
-      setAivenStatus(statusRes);
-      alert('✓ Setelan Aiven.io Database berhasil disimpan dan diaktifkan!');
-      await handlePushAllToAiven();
-    } else {
-      alert(`❌ Gagal menyimpan setelan Aiven: ${res.error}`);
-    }
-  };
-
-  const handlePushAllToAiven = async () => {
-    setIsPushingAiven(true);
-    try {
-      const allUsers = users.length > 0 ? users : getStoredUsers();
-      const allLogs = getStoredLogs();
-      const allConfig = getStoredSchoolConfig();
-      const allNotes = getStoredBKNotes();
-      const allPass = getCustomPasswords();
-
-      const [uOk, lOk, cOk, nOk] = await Promise.all([
-        aivenSyncAndCleanUsers(allUsers),
-        aivenSyncAndCleanLogs(allLogs),
-        aivenSaveSchoolConfig(allConfig),
-        aivenSaveBKNotes(allNotes),
-      ]);
-
-      for (const [uid, pass] of Object.entries(allPass)) {
-        await aivenSaveCustomPassword(uid, pass);
-      }
-
-      await refreshAivenStats();
-      setIsPushingAiven(false);
-      alert(`✓ Sinkronisasi ke Aiven.io Berhasil!\n\n• ${allUsers.length} Pengguna\n• ${allLogs.length} Jurnal Amalan\n• Konfigurasi Sekolah & BK Notes\n\nTabel di Aiven.io telah terisi sepenuhnya.`);
-    } catch (err: any) {
-      setIsPushingAiven(false);
-      alert(`❌ Gagal migrasi data ke Aiven.io: ${err.message || 'Terjadi kesalahan'}`);
-    }
-  };
+  const [isResyncingFirebase, setIsResyncingFirebase] = useState<boolean>(false);
 
   // Unified Save All Function
   const executeSaveAll = async () => {
@@ -191,49 +108,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     saveStoredSchoolConfig(updatedConfig);
     setSchoolConfig(updatedConfig);
 
-    // 3. Purge orphaned data and resync to Supabase
-    await cleanAndResyncSupabaseCloud();
+    // 3. Purge orphaned data and resync to Firebase Firestore
+    await cleanAndResyncFirebaseCloud();
 
     setHasUnsavedChanges(false);
     const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const msg = `Semua perubahan data berhasil disimpan dan disinkronkan ke Cloud pada jam ${timeStr}!`;
+    const msg = `Semua perubahan data berhasil disimpan dan disinkronkan ke Firebase Firestore pada jam ${timeStr}!`;
     setSaveSuccessNotification(msg);
     setLastActionInfo(null);
 
-    alert('✓ Berhasil menyimpan seluruh perubahan data dan membersihkan data lama di Supabase Cloud Database!');
+    alert('✓ Berhasil menyimpan seluruh perubahan data dan menyinkronkan data ke Google Firebase Firestore!');
 
     setTimeout(() => {
       setSaveSuccessNotification(null);
     }, 6000);
   };
 
-  const handleCleanAndResyncSupabase = async () => {
-    if (confirm('Apakah Anda yakin ingin membersihkan data lama dari tabel Supabase dan menyinkronkan ulang seluruh data aktif?')) {
-      setIsResyncingSupabase(true);
-      const success = await cleanAndResyncSupabaseCloud();
-      setIsResyncingSupabase(false);
+  const handleCleanAndResyncFirebase = async () => {
+    if (confirm('Apakah Anda yakin ingin menyinkronkan dan memperbarui seluruh data aktif ke Firebase Firestore?')) {
+      setIsResyncingFirebase(true);
+      const success = await cleanAndResyncFirebaseCloud();
+      setIsResyncingFirebase(false);
       if (success) {
         setUsers(getStoredUsers());
-        alert('✓ Berhasil! Tabel Supabase telah dibersihkan dari data lama dan disinkronkan dengan data terbaru!');
+        alert('✓ Berhasil! Data telah disinkronkan sepenuhnya ke Firebase Firestore!');
       } else {
-        alert('Gagal membersihkan Supabase. Silakan periksa koneksi internet Anda.');
+        alert('Gagal menyinkronkan data ke Firebase. Silakan periksa koneksi internet Anda.');
       }
     }
   };
 
+  const hasUnsavedChangesRef = React.useRef(hasUnsavedChanges);
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges;
+  }, [hasUnsavedChanges]);
+
   useEffect(() => {
     const loadData = () => {
       setUsers(getStoredUsers());
-      const cfg = getStoredSchoolConfig();
-      setSchoolConfig(cfg);
-      setNamaSekolah(cfg.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN');
-      setAlamatSekolah(cfg.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur 76125');
-      setLogoUrl(cfg.logoUrl || '/logo_smpn10.jpg');
-      setStempelUrl(cfg.stempelUrl || '');
-      setNamaKepala(cfg.namaKepalaSekolah);
-      setNipKepala(cfg.nipKepalaSekolah || '');
-      setNamaWali(cfg.namaWaliKelas);
-      setNipWali(cfg.nipWaliKelas || '');
+      if (!hasUnsavedChangesRef.current) {
+        const cfg = getStoredSchoolConfig();
+        setSchoolConfig(cfg);
+        setNamaSekolah(cfg.namaSekolah || 'SMP NEGERI 10 BALIKPAPAN');
+        setAlamatSekolah(cfg.alamatSekolah || 'Jl. Strat 3 No. 45, Gunung Samarinda, Kec. Balikpapan Utara, Kota Balikpapan, Kalimantan Timur 76125');
+        setLogoUrl(cfg.logoUrl || '/logo_smpn10.jpg');
+        setStempelUrl(cfg.stempelUrl || '');
+        setNamaKepala(cfg.namaKepalaSekolah);
+        setNipKepala(cfg.nipKepalaSekolah || '');
+        setNamaWali(cfg.namaWaliKelas);
+        setNipWali(cfg.nipWaliKelas || '');
+      }
     };
     loadData();
 
@@ -1401,7 +1325,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                   Unggah file cadangan JSON yang pernah diunduh sebelumnya untuk mengembalikan seluruh identitas sekolah, logo, akun, dan riwayat presensi secara otomatis.
                 </p>
                 <p className="text-[11px] text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                  ✓ Data restored langsung disinkronkan ke Supabase Cloud Database.
+                  ✓ Data restored langsung disinkronkan ke Google Firebase Firestore.
                 </p>
               </div>
 
@@ -1417,137 +1341,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
             </div>
           </div>
 
-          {/* AIVEN.IO DATABASE CONFIGURATION CARD */}
-          <div className="p-6 bg-indigo-50/80 border border-indigo-200 rounded-2xl space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-xs">
-                  <Database className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                    Koneksi Database Aiven.io (PostgreSQL Cloud)
-                    {aivenStatus?.connected ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Terhubung
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        Belum Terhubung
-                      </span>
-                    )}
-                  </h4>
-                  <p className="text-xs text-slate-600">
-                    Gunakan layanan Aiven.io (PostgreSQL) sebagai database cloud utama atau cadangan tersinkronisasi.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3 bg-white p-4 rounded-xl border border-indigo-100 shadow-xs">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  URI Koneksi PostgreSQL Aiven.io:
-                </label>
-                <input
-                  type="password"
-                  value={aivenInputUrl}
-                  onChange={(e) => setAivenInputUrl(e.target.value)}
-                  placeholder="postgres://avnadmin:password@pg-service.aivencloud.com:12345/defaultdb?sslmode=require"
-                  className="w-full p-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
-                />
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Format Aiven URI: <code className="bg-slate-100 px-1 rounded">postgres://[user]:[password]@[host]:[port]/[database]?sslmode=require</code>
-                </p>
-              </div>
-
-              {aivenStatus?.error && (
-                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 font-medium flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>{aivenStatus.error}</span>
-                </div>
-              )}
-
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleTestAivenConnection}
-                  disabled={isTestingAiven || !aivenInputUrl.trim()}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 disabled:opacity-50 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingAiven ? 'animate-spin' : ''}`} />
-                  {isTestingAiven ? 'Menguji...' : 'Tes Koneksi Aiven'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveAivenConnection}
-                  disabled={isSavingAiven}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 font-extrabold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all shadow-xs"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  {isSavingAiven ? 'Menyimpan...' : 'Simpan & Aktifkan Aiven DB'}
-                </button>
-
-                {aivenStatus?.connected && (
-                  <button
-                    type="button"
-                    onClick={handlePushAllToAiven}
-                    disabled={isPushingAiven}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 font-extrabold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all shadow-xs"
-                  >
-                    <Upload className={`w-3.5 h-3.5 ${isPushingAiven ? 'animate-spin' : ''}`} />
-                    {isPushingAiven ? 'Memindahkan Data...' : 'Migrasikan Data ke Aiven.io Sekarang'}
-                  </button>
-                )}
-              </div>
-
-              {/* Aiven Table Row Counts */}
-              {aivenStatus?.connected && (
-                <div className="mt-4 pt-4 border-t border-indigo-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-700">Status Jumlah Baris Tabel Aiven.io:</span>
-                    <button
-                      type="button"
-                      onClick={refreshAivenStats}
-                      className="text-[11px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
-                    >
-                      <RefreshCw className="w-3 h-3" /> Refresh Status Tabel
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
-                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl">
-                      <p className="text-[10px] uppercase font-bold text-slate-500">kaih_users</p>
-                      <p className="text-base font-black text-indigo-700">{aivenStats?.usersCount ?? 0}</p>
-                      <p className="text-[10px] text-slate-500">Pengguna</p>
-                    </div>
-                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl">
-                      <p className="text-[10px] uppercase font-bold text-slate-500">kaih_logs</p>
-                      <p className="text-base font-black text-indigo-700">{aivenStats?.logsCount ?? 0}</p>
-                      <p className="text-[10px] text-slate-500">Jurnal Log</p>
-                    </div>
-                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl">
-                      <p className="text-[10px] uppercase font-bold text-slate-500">kaih_school_config</p>
-                      <p className="text-base font-black text-indigo-700">{aivenStats?.configCount ?? 0}</p>
-                      <p className="text-[10px] text-slate-500">Config</p>
-                    </div>
-                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl">
-                      <p className="text-[10px] uppercase font-bold text-slate-500">kaih_bk_notes</p>
-                      <p className="text-base font-black text-indigo-700">{aivenStats?.bkNotesCount ?? 0}</p>
-                      <p className="text-[10px] text-slate-500">Catatan BK</p>
-                    </div>
-                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl">
-                      <p className="text-[10px] uppercase font-bold text-slate-500">kaih_passwords</p>
-                      <p className="text-base font-black text-indigo-700">{aivenStats?.passwordsCount ?? 0}</p>
-                      <p className="text-[10px] text-slate-500">Kredensial</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* PURGE / CLEAN & RESYNC FIRESTORE & CLOUD TABLES CARD */}
+          {/* PURGE / CLEAN & RESYNC FIRESTORE TABLES CARD */}
           <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl space-y-4">
             <div className="space-y-2">
               <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
@@ -1557,17 +1351,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                 3. Dorong & Sinkronkan Data ke Firebase Firestore (Resync Total)
               </h4>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Dorong dan kirim seluruh data lokal pengguna, log amalan, konfigurasi sekolah, catatan BK, serta password kustom ke <strong>Google Firebase Firestore</strong> dan database cloud terkait (<code className="bg-amber-100 px-1 rounded">kaih_users</code> & <code className="bg-amber-100 px-1 rounded">kaih_logs</code>).
+                Dorong dan kirim seluruh data lokal pengguna, log amalan, konfigurasi sekolah, catatan BK, serta password kustom ke <strong>Google Firebase Firestore</strong> (<code className="bg-amber-100 px-1 rounded">kaih_users</code> & <code className="bg-amber-100 px-1 rounded">kaih_logs</code>).
               </p>
             </div>
 
             <button
-              onClick={handleCleanAndResyncSupabase}
-              disabled={isResyncingSupabase}
+              onClick={handleCleanAndResyncFirebase}
+              disabled={isResyncingFirebase}
               className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
             >
-              <RefreshCw className={`w-4 h-4 ${isResyncingSupabase ? 'animate-spin' : ''}`} />
-              {isResyncingSupabase ? 'Sedang Menyinkronkan ke Firebase...' : 'Dorong & Sinkronkan Data ke Firebase Firestore Sekarang'}
+              <RefreshCw className={`w-4 h-4 ${isResyncingFirebase ? 'animate-spin' : ''}`} />
+              {isResyncingFirebase ? 'Sedang Menyinkronkan ke Firebase...' : 'Dorong & Sinkronkan Data ke Firebase Firestore Sekarang'}
             </button>
           </div>
 

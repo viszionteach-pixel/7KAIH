@@ -27,7 +27,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     const success = await forceFetchFromCloud();
     setIsSyncing(false);
     if (success) {
-      setSyncToast('✓ Data berhasil disinkronkan langsung dari Supabase Cloud!');
+      setSyncToast('✓ Data berhasil disinkronkan langsung dari Google Firebase Firestore!');
     } else {
       setSyncToast('⚠️ Sinkronisasi Cloud selesai (mode offline/local).');
     }
