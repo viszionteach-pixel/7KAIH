@@ -1,5 +1,6 @@
 import { initializeApp, getApps } from 'firebase/app';
 import {
+  initializeFirestore,
   getFirestore,
   doc,
   getDoc,
@@ -25,7 +26,17 @@ const firebaseConfig = {
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
-export const db = getFirestore(app);
+
+export const db = (() => {
+  try {
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+    });
+  } catch {
+    return getFirestore(app);
+  }
+})();
+
 export const isFirebaseConfigured = true;
 
 // Helper to prevent Firestore offline/network hangs
@@ -260,9 +271,15 @@ export async function firebaseFetchCustomPasswords(): Promise<Record<string, str
 export function subscribeToFirebaseRealtime(onDataChange: () => void): () => void {
   if (!db) return () => {};
   try {
-    const unsub = onSnapshot(collection(db, 'kaih_logs'), () => {
-      onDataChange();
-    });
+    const unsub = onSnapshot(
+      collection(db, 'kaih_logs'),
+      () => {
+        onDataChange();
+      },
+      (err) => {
+        console.warn('[Firebase Realtime Listener Warning]', err?.message || err);
+      }
+    );
     return unsub;
   } catch {
     return () => {};
