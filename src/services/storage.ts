@@ -17,6 +17,18 @@ import {
   supabaseFetchCustomPasswords,
   subscribeToSupabaseRealtime
 } from './supabase';
+import {
+  aivenFetchUsers,
+  aivenSyncAndCleanUsers,
+  aivenFetchLogs,
+  aivenSyncAndCleanLogs,
+  aivenFetchSchoolConfig,
+  aivenSaveSchoolConfig,
+  aivenFetchBKNotes,
+  aivenSaveBKNotes,
+  aivenFetchCustomPasswords,
+  aivenSaveCustomPassword
+} from './aiven';
 
 const KEYS = {
   USERS: 'kaih_smpn10_users_v1',
@@ -92,11 +104,19 @@ function mergeRemoteUsers(remoteUsers: User[]): User[] {
   const localUsers = getStoredUsers();
   const mergedMap = new Map<string, User>();
 
+  // Clear remote user IDs from deleted tombstones if they are active on Cloud
+  let tombstoneUpdated = false;
   remoteUsers.forEach((ru) => {
-    if (!deleted.has(ru.id)) {
-      mergedMap.set(ru.id, ru);
+    mergedMap.set(ru.id, ru);
+    if (deleted.has(ru.id)) {
+      deleted.delete(ru.id);
+      tombstoneUpdated = true;
     }
   });
+
+  if (tombstoneUpdated) {
+    localStorage.setItem(KEYS.DELETED_USER_IDS, JSON.stringify(Array.from(deleted)));
+  }
 
   localUsers.forEach((lu) => {
     if (!deleted.has(lu.id)) {
@@ -241,54 +261,72 @@ function mergeRemotePasswords(remotePasswords: Record<string, string>) {
   localStorage.setItem(KEYS.CUSTOM_PASSWORDS, JSON.stringify(merged));
 }
 
-// Force sync directly from Supabase Cloud
+// Force sync directly from Cloud (Supabase and Aiven.io)
 export async function forceFetchFromCloud(): Promise<boolean> {
-  if (!isSupabaseConfigured) return false;
   try {
     isRemoteUpdating = true;
 
-    const [cloudUsers, cloudLogs, cloudConfig, cloudNotes, cloudPasswords] = await Promise.all([
+    // Fetch parallelly from Supabase and Aiven DB
+    const [
+      cloudUsers, cloudLogs, cloudConfig, cloudNotes, cloudPasswords,
+      aivenUsers, aivenLogs, aivenConfig, aivenNotes, aivenPasswords
+    ] = await Promise.all([
       supabaseFetchUsers(),
       supabaseFetchLogs(),
       supabaseFetchSchoolConfig(),
       supabaseFetchBKNotes(),
       supabaseFetchCustomPasswords(),
+      aivenFetchUsers(),
+      aivenFetchLogs(),
+      aivenFetchSchoolConfig(),
+      aivenFetchBKNotes(),
+      aivenFetchCustomPasswords()
     ]);
 
-    if (cloudUsers && cloudUsers.length > 0) {
-      mergeRemoteUsers(cloudUsers);
+    const combinedUsers = [...(cloudUsers || []), ...(aivenUsers || [])];
+    if (combinedUsers.length > 0) {
+      mergeRemoteUsers(combinedUsers);
     } else {
       const localUsers = getStoredUsers();
-      supabaseSaveUsers(localUsers);
+      if (isSupabaseConfigured) supabaseSaveUsers(localUsers);
+      aivenSyncAndCleanUsers(localUsers);
     }
 
-    if (cloudLogs && cloudLogs.length > 0) {
-      mergeRemoteLogs(cloudLogs);
+    const combinedLogs = [...(cloudLogs || []), ...(aivenLogs || [])];
+    if (combinedLogs.length > 0) {
+      mergeRemoteLogs(combinedLogs);
     } else {
       const localLogs = getStoredLogs();
-      if (localLogs.length > 0) supabaseSaveLogs(localLogs);
+      if (localLogs.length > 0) {
+        if (isSupabaseConfigured) supabaseSaveLogs(localLogs);
+        aivenSyncAndCleanLogs(localLogs);
+      }
     }
 
-    if (cloudConfig) {
-      mergeRemoteSchoolConfig(cloudConfig);
+    const effectiveConfig = aivenConfig || cloudConfig;
+    if (effectiveConfig) {
+      mergeRemoteSchoolConfig(effectiveConfig);
     } else {
       const localConfig = getStoredSchoolConfig();
-      supabaseSaveSchoolConfig(localConfig);
+      if (isSupabaseConfigured) supabaseSaveSchoolConfig(localConfig);
+      aivenSaveSchoolConfig(localConfig);
     }
 
-    if (cloudNotes && cloudNotes.length > 0) {
-      mergeRemoteBKNotes(cloudNotes);
+    const combinedNotes = [...(cloudNotes || []), ...(aivenNotes || [])];
+    if (combinedNotes.length > 0) {
+      mergeRemoteBKNotes(combinedNotes);
     }
 
-    if (cloudPasswords) {
-      mergeRemotePasswords(cloudPasswords);
+    const combinedPasswords = { ...(cloudPasswords || {}), ...(aivenPasswords || {}) };
+    if (Object.keys(combinedPasswords).length > 0) {
+      mergeRemotePasswords(combinedPasswords);
     }
 
     isRemoteUpdating = false;
     notifyDataChanged();
     return true;
   } catch (err) {
-    console.error('Failed to force sync from Supabase cloud:', err);
+    console.error('Failed to force sync from cloud databases:', err);
     isRemoteUpdating = false;
     return false;
   }
@@ -416,26 +454,29 @@ export function saveStoredUsers(users: User[]): void {
   const deletedIds = Array.from(currentIds).filter((id) => !newIds.has(id));
   deletedIds.forEach((id) => recordDeletedUserId(id));
 
-  // Ensure deleted users are filtered out
+  // Remove any active user IDs from deleted tombstones
   const deletedSet = getDeletedUserIds();
-  const validUsers = users.filter((u) => !deletedSet.has(u.id));
-
-  // Identify new or modified users
-  const changedOrNewUsers = validUsers.filter((u) => {
-    const prev = previousUsers.find((p) => p.id === u.id);
-    return !prev || JSON.stringify(prev) !== JSON.stringify(u);
+  let tombstoneChanged = false;
+  users.forEach((u) => {
+    if (deletedSet.has(u.id)) {
+      deletedSet.delete(u.id);
+      tombstoneChanged = true;
+    }
   });
+  if (tombstoneChanged) {
+    localStorage.setItem(KEYS.DELETED_USER_IDS, JSON.stringify(Array.from(deletedSet)));
+  }
 
-  localStorage.setItem(KEYS.USERS, JSON.stringify(validUsers));
+  localStorage.setItem(KEYS.USERS, JSON.stringify(users));
   notifyDataChanged();
 
-  if (!isRemoteUpdating && isSupabaseConfigured) {
-    supabaseSyncAndCleanUsers(validUsers);
+  if (!isRemoteUpdating) {
+    if (isSupabaseConfigured) supabaseSyncAndCleanUsers(users);
+    aivenSyncAndCleanUsers(users);
   }
 }
 
 export async function cleanAndResyncSupabaseCloud(): Promise<boolean> {
-  if (!isSupabaseConfigured) return false;
   try {
     isRemoteUpdating = true;
     const users = getStoredUsers();
@@ -444,22 +485,34 @@ export async function cleanAndResyncSupabaseCloud(): Promise<boolean> {
     const bkNotes = getStoredBKNotes();
     const passwords = getCustomPasswords();
 
-    await Promise.all([
-      supabaseSyncAndCleanUsers(users),
-      supabaseSyncAndCleanLogs(logs),
-      supabaseSaveSchoolConfig(config),
-      supabaseSaveBKNotes(bkNotes),
-    ]);
+    const tasks: Promise<any>[] = [
+      aivenSyncAndCleanUsers(users),
+      aivenSyncAndCleanLogs(logs),
+      aivenSaveSchoolConfig(config),
+      aivenSaveBKNotes(bkNotes),
+    ];
+
+    if (isSupabaseConfigured) {
+      tasks.push(
+        supabaseSyncAndCleanUsers(users),
+        supabaseSyncAndCleanLogs(logs),
+        supabaseSaveSchoolConfig(config),
+        supabaseSaveBKNotes(bkNotes)
+      );
+    }
+
+    await Promise.all(tasks);
 
     for (const [userId, pass] of Object.entries(passwords)) {
-      await supabaseSaveCustomPassword(userId, pass);
+      if (isSupabaseConfigured) await supabaseSaveCustomPassword(userId, pass);
+      await aivenSaveCustomPassword(userId, pass);
     }
 
     isRemoteUpdating = false;
     notifyDataChanged();
     return true;
   } catch (err) {
-    console.error('Failed to clean and resync Supabase:', err);
+    console.error('Failed to clean and resync cloud databases:', err);
     isRemoteUpdating = false;
     return false;
   }
@@ -482,6 +535,7 @@ export function saveSingleUser(user: User): void {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     if (isSupabaseConfigured) supabaseSaveUsers([user]);
+    aivenSyncAndCleanUsers(users);
   }
 }
 
@@ -527,6 +581,7 @@ export function saveStoredLogs(logs: KAIHEntry[]): void {
 
   if (!isRemoteUpdating && changedOrNewLogs.length > 0) {
     if (isSupabaseConfigured) supabaseSaveLogs(changedOrNewLogs);
+    aivenSyncAndCleanLogs(logs);
   }
 }
 
@@ -546,6 +601,7 @@ export function addOrUpdateLog(entry: KAIHEntry): KAIHEntry[] {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     if (isSupabaseConfigured) supabaseSaveLogs([entry]);
+    aivenSyncAndCleanLogs(logs);
   }
   return logs;
 }
@@ -564,6 +620,7 @@ export function saveStoredSchoolConfig(config: MonthlyReportConfig): void {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     if (isSupabaseConfigured) supabaseSaveSchoolConfig(config);
+    aivenSaveSchoolConfig(config);
   }
 }
 
@@ -583,6 +640,7 @@ export function saveBKNote(note: BKCounselingNote): BKCounselingNote[] {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     if (isSupabaseConfigured) supabaseSaveBKNotes(notes as any);
+    aivenSaveBKNotes(notes);
   }
   return notes;
 }
@@ -641,6 +699,7 @@ export function saveCustomPassword(userId: string, newPass: string): void {
   notifyDataChanged();
   if (!isRemoteUpdating) {
     if (isSupabaseConfigured) supabaseSaveCustomPassword(userId, newPass);
+    aivenSaveCustomPassword(userId, newPass);
   }
 }
 

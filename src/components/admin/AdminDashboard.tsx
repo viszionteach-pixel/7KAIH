@@ -12,6 +12,7 @@ import {
   saveCustomPassword, getCustomPasswords, resetAllDataToDefault, getStoredLogs,
   exportFullBackupJSON, importFullBackupJSON, cleanAndResyncSupabaseCloud
 } from '../../services/storage';
+import { checkAivenStatus, setAivenConfigUrl, getSavedAivenUrl, AivenStatusResponse } from '../../services/aiven';
 import { StudentImportModal } from './StudentImportModal';
 import { ExportHabitsModal } from '../reports/ExportHabitsModal';
 
@@ -87,6 +88,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   const [lastActionInfo, setLastActionInfo] = useState<string | null>(null);
   const [saveSuccessNotification, setSaveSuccessNotification] = useState<string | null>(null);
   const [isResyncingSupabase, setIsResyncingSupabase] = useState<boolean>(false);
+
+  // Aiven Database State
+  const [aivenInputUrl, setAivenInputUrl] = useState<string>(getSavedAivenUrl());
+  const [aivenStatus, setAivenStatus] = useState<AivenStatusResponse | null>(null);
+  const [isTestingAiven, setIsTestingAiven] = useState<boolean>(false);
+  const [isSavingAiven, setIsSavingAiven] = useState<boolean>(false);
+
+  useEffect(() => {
+    checkAivenStatus().then((res) => setAivenStatus(res));
+  }, []);
+
+  const handleTestAivenConnection = async () => {
+    setIsTestingAiven(true);
+    const res = await checkAivenStatus(aivenInputUrl.trim(), false);
+    setAivenStatus(res);
+    setIsTestingAiven(false);
+    if (res.connected) {
+      alert('✓ Koneksi ke Aiven PostgreSQL berhasil terhubung!');
+    } else {
+      alert(`❌ Koneksi gagal: ${res.error || 'Periksa URL koneksi Aiven Anda'}`);
+    }
+  };
+
+  const handleSaveAivenConnection = async () => {
+    setIsSavingAiven(true);
+    const res = await setAivenConfigUrl(aivenInputUrl.trim());
+    setIsSavingAiven(false);
+    if (res.success) {
+      const statusRes = await checkAivenStatus(aivenInputUrl.trim(), true);
+      setAivenStatus(statusRes);
+      alert('✓ Setelan Aiven.io Database berhasil disimpan dan diaktifkan!');
+      cleanAndResyncSupabaseCloud();
+    } else {
+      alert(`❌ Gagal menyimpan setelan Aiven: ${res.error}`);
+    }
+  };
 
   // Unified Save All Function
   const executeSaveAll = async () => {
@@ -890,9 +927,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
               const matchesSearch = cls.toLowerCase().includes(classSearchQuery.toLowerCase());
               return matchesGrade && matchesSearch;
             }).map((cls) => {
-              const classStudents = users.filter((u) => u.assignedClass === cls && u.role === 'siswa');
+              const classStudents = users.filter((u) => u.role === 'siswa' && u.assignedClass && u.assignedClass.trim().toUpperCase() === cls.trim().toUpperCase());
               const classUserCount = classStudents.length;
-              const wk = users.find((u) => u.assignedClass === cls && u.role === 'wali_kelas');
+              const wk = users.find((u) => u.role === 'wali_kelas' && u.assignedClass && u.assignedClass.trim().toUpperCase() === cls.trim().toUpperCase());
               const gradeNumber = cls.charAt(0);
 
               const colorScheme =
@@ -1331,6 +1368,81 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                   className="hidden"
                 />
               </label>
+            </div>
+          </div>
+
+          {/* AIVEN.IO DATABASE CONFIGURATION CARD */}
+          <div className="p-6 bg-indigo-50/80 border border-indigo-200 rounded-2xl space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-xs">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    Koneksi Database Aiven.io (PostgreSQL Cloud)
+                    {aivenStatus?.connected ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Terhubung
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        Belum Terhubung
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-xs text-slate-600">
+                    Gunakan layanan Aiven.io (PostgreSQL) sebagai database cloud utama atau cadangan tersinkronisasi.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 bg-white p-4 rounded-xl border border-indigo-100 shadow-xs">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  URI Koneksi PostgreSQL Aiven.io:
+                </label>
+                <input
+                  type="password"
+                  value={aivenInputUrl}
+                  onChange={(e) => setAivenInputUrl(e.target.value)}
+                  placeholder="postgres://avnadmin:password@pg-service.aivencloud.com:12345/defaultdb?sslmode=require"
+                  className="w-full p-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Format Aiven URI: <code className="bg-slate-100 px-1 rounded">postgres://[user]:[password]@[host]:[port]/[database]?sslmode=require</code>
+                </p>
+              </div>
+
+              {aivenStatus?.error && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 font-medium flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{aivenStatus.error}</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestAivenConnection}
+                  disabled={isTestingAiven || !aivenInputUrl.trim()}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 disabled:opacity-50 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingAiven ? 'animate-spin' : ''}`} />
+                  {isTestingAiven ? 'Menguji Connection...' : 'Tes Koneksi Aiven'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAivenConnection}
+                  disabled={isSavingAiven}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 font-extrabold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all shadow-xs"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {isSavingAiven ? 'Menyimpan...' : 'Simpan & Aktifkan Aiven DB'}
+                </button>
+              </div>
             </div>
           </div>
 

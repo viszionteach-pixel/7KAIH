@@ -62,9 +62,21 @@ export async function supabaseSyncAndCleanUsers(activeUsers: User[]): Promise<bo
   if (!supabase) return false;
   try {
     const activeIds = new Set(activeUsers.map((u) => u.id));
-    const { data: existingRows } = await supabase.from('kaih_users').select('id');
+    const { data: existingRows } = await supabase.from('kaih_users').select('id, role');
     if (existingRows && existingRows.length > 0) {
-      const orphanedIds = existingRows.map((r) => r.id).filter((id) => !activeIds.has(id));
+      const activeStudents = activeUsers.filter((u) => u.role === 'siswa');
+      const existingStudents = existingRows.filter((r) => r.role === 'siswa');
+
+      let orphanedIds: string[] = [];
+      // If local active users has 0 students but Supabase has students, protect Cloud students from accidental purge
+      if (activeStudents.length === 0 && existingStudents.length > 0) {
+        orphanedIds = existingRows
+          .filter((r) => r.role !== 'siswa' && !activeIds.has(r.id))
+          .map((r) => r.id);
+      } else {
+        orphanedIds = existingRows.map((r) => r.id).filter((id) => !activeIds.has(id));
+      }
+
       if (orphanedIds.length > 0) {
         for (let i = 0; i < orphanedIds.length; i += 100) {
           const chunk = orphanedIds.slice(i, i + 100);
@@ -82,7 +94,7 @@ export async function supabaseSyncAndCleanUsers(activeUsers: User[]): Promise<bo
 export async function supabaseFetchUsers(): Promise<User[] | null> {
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.from('kaih_users').select('*');
+    const { data, error } = await supabase.from('kaih_users').select('*').range(0, 4999);
     if (error) {
       handleSupabaseError(error, 'Fetch Users');
       return null;
