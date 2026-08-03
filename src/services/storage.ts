@@ -2,6 +2,7 @@ import { User, KAIHEntry, BKCounselingNote, MonthlyReportConfig } from '../types
 import { INITIAL_ADMINS, INITIAL_GURU_BK, INITIAL_WALI_KELAS, INITIAL_STUDENTS, INITIAL_KAIH_LOGS, INITIAL_SCHOOL_CONFIG } from '../data/initialData';
 import {
   isFirebaseConfigured,
+  enableFirestorePersistence,
   firebaseSaveUsers,
   firebaseSyncAndCleanUsers,
   firebaseDeleteUser,
@@ -337,10 +338,17 @@ export async function initFirebaseRealtimeSync() {
   if (isInitialized) return;
   isInitialized = true;
 
-  // 1. Initial Cloud Sync
+  // 1. Enable IndexedDB Persistence for offline support & unstable network
+  try {
+    await enableFirestorePersistence();
+  } catch (err) {
+    console.warn('[Storage] Could not enable IndexedDB persistence:', err);
+  }
+
+  // 2. Initial Cloud Sync
   await forceFetchFromCloud();
 
-  // 2. Realtime Listener from Firebase
+  // 3. Realtime Listener from Firebase
   subscribeToFirebaseRealtime(() => {
     forceFetchFromCloud();
   });

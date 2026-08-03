@@ -11,7 +11,9 @@ import {
   getDocs,
   writeBatch,
   onSnapshot,
-  getDocFromServer
+  getDocFromServer,
+  enableIndexedDbPersistence,
+  enableMultiTabIndexedDbPersistence
 } from 'firebase/firestore';
 import appletConfig from '../../firebase-applet-config.json';
 import { User, KAIHEntry, MonthlyReportConfig, BKCounselingNote } from '../types';
@@ -48,6 +50,29 @@ export const db = (() => {
 })();
 
 export const isFirebaseConfigured = true;
+
+// Enable Firestore IndexedDB Persistence for offline support
+export async function enableFirestorePersistence(): Promise<boolean> {
+  if (!db) return false;
+  try {
+    if (typeof enableMultiTabIndexedDbPersistence === 'function') {
+      await enableMultiTabIndexedDbPersistence(db);
+    } else if (typeof enableIndexedDbPersistence === 'function') {
+      await enableIndexedDbPersistence(db);
+    }
+    console.log('[Firestore Persistence] IndexedDB persistence enabled successfully.');
+    return true;
+  } catch (err: any) {
+    if (err?.code === 'failed-precondition') {
+      console.warn('[Firestore Persistence] Multiple tabs open; persistence active in primary tab');
+    } else if (err?.code === 'unimplemented') {
+      console.warn('[Firestore Persistence] Current browser does not support IndexedDB persistence');
+    } else {
+      console.warn('[Firestore Persistence Warning]', err?.message || err);
+    }
+    return false;
+  }
+}
 
 // Helper to test connection on boot
 async function testConnection() {
