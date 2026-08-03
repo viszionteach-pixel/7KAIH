@@ -38,7 +38,7 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 
-const targetDatabaseId = metaEnv.VITE_FIREBASE_DATABASE_ID || appletConfig.firestoreDatabaseId || "(default)";
+const targetDatabaseId = metaEnv.VITE_FIREBASE_DATABASE_ID || (appletConfig as any).firestoreDatabaseId || "ai-studio-kaihsmpn10balikp-c8bf08cc-cab1-468e-8186-b5eab8ab99e2";
 
 export const db = (() => {
   try {
