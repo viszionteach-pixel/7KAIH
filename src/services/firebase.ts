@@ -9,6 +9,8 @@ import {
   deleteDoc,
   collection,
   getDocs,
+  getDocsFromCache,
+  getDocFromCache,
   writeBatch,
   onSnapshot,
   getDocFromServer,
@@ -64,11 +66,11 @@ export async function enableFirestorePersistence(): Promise<boolean> {
     return true;
   } catch (err: any) {
     if (err?.code === 'failed-precondition') {
-      console.warn('[Firestore Persistence] Multiple tabs open; persistence active in primary tab');
+      console.info('[Firestore Persistence] Multiple tabs open; persistence active in primary tab');
     } else if (err?.code === 'unimplemented') {
-      console.warn('[Firestore Persistence] Current browser does not support IndexedDB persistence');
+      console.info('[Firestore Persistence] Current browser does not support IndexedDB persistence');
     } else {
-      console.warn('[Firestore Persistence Warning]', err?.message || err);
+      console.info('[Firestore Persistence Info]', err?.message || err);
     }
     return false;
   }
@@ -82,13 +84,13 @@ async function testConnection() {
       console.log('Successfully connected to Firebase Firestore!');
     }
   } catch (error) {
-    console.log('Firebase connection ready or initializing:', error);
+    console.info('Firebase connection ready or initializing:', error);
   }
 }
 testConnection();
 
 // Helper to prevent Firestore offline/network hangs
-function withTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms = 6000): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error('Firebase operation timed out'));
@@ -103,6 +105,31 @@ function withTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
         reject(err);
       });
   });
+}
+
+// Fetch helper with IndexedDB cache fallback on timeout or error
+async function fetchDocsWithFallback(colRef: any) {
+  try {
+    return await withTimeout(getDocs(colRef), 6000);
+  } catch (err) {
+    try {
+      const cacheSnap = await getDocsFromCache(colRef);
+      if (cacheSnap && !cacheSnap.empty) return cacheSnap;
+    } catch {}
+    throw err;
+  }
+}
+
+async function fetchDocWithFallback(docRef: any) {
+  try {
+    return await withTimeout(getDoc(docRef), 6000);
+  } catch (err) {
+    try {
+      const cacheSnap = await getDocFromCache(docRef);
+      if (cacheSnap && cacheSnap.exists()) return cacheSnap;
+    } catch {}
+    throw err;
+  }
 }
 
 // Helper to chunk batch operations (max 400 operations per batch)
@@ -121,7 +148,7 @@ async function commitDocsInBatches<T>(
     }
     return true;
   } catch (err) {
-    console.warn('[Firebase Chunked Batch Save Warning]', err);
+    console.info('[Firebase Chunked Batch Save Info]', err);
     return false;
   }
 }
@@ -139,7 +166,7 @@ export async function firebaseSyncAndCleanUsers(activeUsers: User[]): Promise<bo
   if (!db) return false;
   try {
     const activeIds = new Set(activeUsers.map((u) => u.id));
-    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_users')));
+    const snapshot = await fetchDocsWithFallback(collection(db, 'kaih_users'));
     const existingDocs = snapshot.docs;
     
     if (existingDocs.length > 0) {
@@ -159,7 +186,7 @@ export async function firebaseSyncAndCleanUsers(activeUsers: User[]): Promise<bo
     }
     return await firebaseSaveUsers(activeUsers);
   } catch (err) {
-    console.warn('[Firebase Sync and Clean Users Warning]', err);
+    console.info('[Firebase Sync and Clean Users Info]', err);
     return false;
   }
 }
@@ -170,7 +197,7 @@ export async function firebaseDeleteUser(userId: string): Promise<boolean> {
     await withTimeout(deleteDoc(doc(db, 'kaih_users', userId)));
     return true;
   } catch (err) {
-    console.warn('[Firebase Delete User Warning]', err);
+    console.info('[Firebase Delete User Info]', err);
     return false;
   }
 }
@@ -178,15 +205,15 @@ export async function firebaseDeleteUser(userId: string): Promise<boolean> {
 export async function firebaseFetchUsers(): Promise<User[] | null> {
   if (!db) return null;
   try {
-    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_users')));
+    const snapshot = await fetchDocsWithFallback(collection(db, 'kaih_users'));
     if (snapshot.empty) return null;
     const users: User[] = snapshot.docs.map((d) => {
-      const data = d.data();
+      const data = d.data() as any;
       return (data.data ? data.data : data) as User;
     });
     return users;
   } catch (err) {
-    console.warn('[Firebase Fetch Users Warning]', err);
+    console.info('[Firebase Fetch Users Info]', err);
     return null;
   }
 }
@@ -204,7 +231,7 @@ export async function firebaseSyncAndCleanLogs(activeLogs: KAIHEntry[]): Promise
   if (!db) return false;
   try {
     const activeIds = new Set(activeLogs.map((l) => l.id));
-    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_logs')));
+    const snapshot = await fetchDocsWithFallback(collection(db, 'kaih_logs'));
     const orphanedDocs = snapshot.docs.filter((d) => !activeIds.has(d.id));
 
     if (orphanedDocs.length > 0) {
@@ -214,7 +241,7 @@ export async function firebaseSyncAndCleanLogs(activeLogs: KAIHEntry[]): Promise
     }
     return await firebaseSaveLogs(activeLogs);
   } catch (err) {
-    console.warn('[Firebase Sync and Clean Logs Warning]', err);
+    console.info('[Firebase Sync and Clean Logs Info]', err);
     return false;
   }
 }
@@ -222,15 +249,15 @@ export async function firebaseSyncAndCleanLogs(activeLogs: KAIHEntry[]): Promise
 export async function firebaseFetchLogs(): Promise<KAIHEntry[] | null> {
   if (!db) return null;
   try {
-    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_logs')));
+    const snapshot = await fetchDocsWithFallback(collection(db, 'kaih_logs'));
     if (snapshot.empty) return null;
     const logs: KAIHEntry[] = snapshot.docs.map((d) => {
-      const data = d.data();
+      const data = d.data() as any;
       return (data.data ? data.data : data) as KAIHEntry;
     });
     return logs;
   } catch (err) {
-    console.warn('[Firebase Fetch Logs Warning]', err);
+    console.info('[Firebase Fetch Logs Info]', err);
     return null;
   }
 }
@@ -242,7 +269,7 @@ export async function firebaseSaveSchoolConfig(config: MonthlyReportConfig): Pro
     await withTimeout(setDoc(doc(db, 'kaih_school_config', 'main'), { config, updatedAt: new Date().toISOString() }));
     return true;
   } catch (err) {
-    console.warn('[Firebase Save School Config Warning]', err);
+    console.info('[Firebase Save School Config Info]', err);
     return false;
   }
 }
@@ -250,11 +277,12 @@ export async function firebaseSaveSchoolConfig(config: MonthlyReportConfig): Pro
 export async function firebaseFetchSchoolConfig(): Promise<MonthlyReportConfig | null> {
   if (!db) return null;
   try {
-    const docSnap = await withTimeout(getDoc(doc(db, 'kaih_school_config', 'main')));
+    const docSnap = await fetchDocWithFallback(doc(db, 'kaih_school_config', 'main'));
     if (!docSnap.exists()) return null;
-    return docSnap.data().config as MonthlyReportConfig;
+    const data = docSnap.data() as any;
+    return data.config as MonthlyReportConfig;
   } catch (err) {
-    console.warn('[Firebase Fetch School Config Warning]', err);
+    console.info('[Firebase Fetch School Config Info]', err);
     return null;
   }
 }
@@ -271,12 +299,12 @@ export async function firebaseSaveBKNotes(notes: BKCounselingNote[]): Promise<bo
 export async function firebaseFetchBKNotes(): Promise<BKCounselingNote[] | null> {
   if (!db) return null;
   try {
-    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_bk_notes')));
+    const snapshot = await fetchDocsWithFallback(collection(db, 'kaih_bk_notes'));
     if (snapshot.empty) return null;
     const notes: BKCounselingNote[] = snapshot.docs.map((d) => d.data() as BKCounselingNote);
     return notes;
   } catch (err) {
-    console.warn('[Firebase Fetch BK Notes Warning]', err);
+    console.info('[Firebase Fetch BK Notes Info]', err);
     return null;
   }
 }
@@ -288,7 +316,7 @@ export async function firebaseSaveCustomPassword(userId: string, pass: string): 
     await withTimeout(setDoc(doc(db, 'kaih_passwords', userId), { password: pass, userId, updatedAt: new Date().toISOString() }));
     return true;
   } catch (err) {
-    console.warn('[Firebase Save Custom Password Warning]', err);
+    console.info('[Firebase Save Custom Password Info]', err);
     return false;
   }
 }
@@ -296,18 +324,18 @@ export async function firebaseSaveCustomPassword(userId: string, pass: string): 
 export async function firebaseFetchCustomPasswords(): Promise<Record<string, string> | null> {
   if (!db) return null;
   try {
-    const snapshot = await withTimeout(getDocs(collection(db, 'kaih_passwords')));
+    const snapshot = await fetchDocsWithFallback(collection(db, 'kaih_passwords'));
     if (snapshot.empty) return null;
     const map: Record<string, string> = {};
     snapshot.docs.forEach((d) => {
-      const data = d.data();
-      if (data.userId && data.password) {
+      const data = d.data() as any;
+      if (data && data.userId && data.password) {
         map[data.userId] = data.password;
       }
     });
     return map;
   } catch (err) {
-    console.warn('[Firebase Fetch Custom Passwords Warning]', err);
+    console.info('[Firebase Fetch Custom Passwords Info]', err);
     return null;
   }
 }
@@ -324,7 +352,7 @@ export function subscribeToFirebaseRealtime(onDataChange: () => void): () => voi
         onDataChange();
       },
       (err) => {
-        console.warn('[Firebase Realtime Listener Warning]', err?.message || err);
+        console.info('[Firebase Realtime Listener Info]', err?.message || err);
       }
     );
     return unsub;
@@ -332,3 +360,4 @@ export function subscribeToFirebaseRealtime(onDataChange: () => void): () => voi
     return () => {};
   }
 }
+

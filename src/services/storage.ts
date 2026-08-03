@@ -42,6 +42,34 @@ export function notifyDataChanged() {
 let isRemoteUpdating = false;
 
 // Helpers for Tombstones (tracking deleted items across devices/sessions)
+export async function retryWithExponentialBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  initialDelayMs = 500
+): Promise<T> {
+  let attempt = 0;
+  let delay = initialDelayMs;
+
+  while (true) {
+    try {
+      const result = await fn();
+      if (typeof result === 'boolean' && !result) {
+        throw new Error('Firebase save operation returned false');
+      }
+      return result;
+    } catch (error) {
+      attempt++;
+      if (attempt >= maxRetries) {
+        console.warn(`[Exponential Backoff] Save operation failed after ${maxRetries} attempts:`, error);
+        throw error;
+      }
+      console.info(`[Exponential Backoff] Attempt ${attempt}/${maxRetries} failed due to network glitch, retrying in ${delay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay *= 2;
+    }
+  }
+}
+
 export function getDeletedUserIds(): Set<string> {
   try {
     const data = localStorage.getItem(KEYS.DELETED_USER_IDS);
@@ -439,7 +467,7 @@ export function getStoredUsers(): User[] {
     if (modified) {
       localStorage.setItem(KEYS.USERS, JSON.stringify(filtered));
       if (!isRemoteUpdating) {
-        firebaseSaveUsers(filtered);
+        retryWithExponentialBackoff(() => firebaseSaveUsers(filtered)).catch(() => {});
       }
     }
 
@@ -476,7 +504,9 @@ export function saveStoredUsers(users: User[]): void {
   notifyDataChanged();
 
   if (!isRemoteUpdating) {
-    firebaseSyncAndCleanUsers(users);
+    retryWithExponentialBackoff(() => firebaseSyncAndCleanUsers(users)).catch((err) =>
+      console.info('[Storage Backoff Info] Sync users retry failed:', err)
+    );
   }
 }
 
@@ -494,16 +524,16 @@ export async function cleanAndResyncFirebaseCloud(): Promise<boolean> {
     const passwords = getCustomPasswords();
 
     const tasks: Promise<any>[] = [
-      firebaseSyncAndCleanUsers(users),
-      firebaseSyncAndCleanLogs(logs),
-      firebaseSaveSchoolConfig(config),
-      firebaseSaveBKNotes(bkNotes),
+      retryWithExponentialBackoff(() => firebaseSyncAndCleanUsers(users)),
+      retryWithExponentialBackoff(() => firebaseSyncAndCleanLogs(logs)),
+      retryWithExponentialBackoff(() => firebaseSaveSchoolConfig(config)),
+      retryWithExponentialBackoff(() => firebaseSaveBKNotes(bkNotes)),
     ];
 
     await Promise.all(tasks);
 
     for (const [userId, pass] of Object.entries(passwords)) {
-      await firebaseSaveCustomPassword(userId, pass);
+      await retryWithExponentialBackoff(() => firebaseSaveCustomPassword(userId, pass)).catch(() => {});
     }
 
     isRemoteUpdating = false;
@@ -518,7 +548,9 @@ export async function cleanAndResyncFirebaseCloud(): Promise<boolean> {
 
 export function deleteUser(userId: string): void {
   const users = getStoredUsers().filter((u) => u.id !== userId);
-  firebaseDeleteUser(userId);
+  if (!isRemoteUpdating) {
+    retryWithExponentialBackoff(() => firebaseDeleteUser(userId)).catch(() => {});
+  }
   saveStoredUsers(users);
 }
 
@@ -533,7 +565,9 @@ export function saveSingleUser(user: User): void {
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    firebaseSaveUsers([user]);
+    retryWithExponentialBackoff(() => firebaseSaveUsers([user])).catch((err) =>
+      console.info('[Storage Backoff Info] Save single user retry failed:', err)
+    );
   }
 }
 
@@ -578,7 +612,9 @@ export function saveStoredLogs(logs: KAIHEntry[]): void {
   notifyDataChanged();
 
   if (!isRemoteUpdating && changedOrNewLogs.length > 0) {
-    firebaseSaveLogs(changedOrNewLogs);
+    retryWithExponentialBackoff(() => firebaseSaveLogs(changedOrNewLogs)).catch((err) =>
+      console.info('[Storage Backoff Info] Save logs retry failed:', err)
+    );
   }
 }
 
@@ -597,7 +633,9 @@ export function addOrUpdateLog(entry: KAIHEntry): KAIHEntry[] {
   localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    firebaseSaveLogs([entry]);
+    retryWithExponentialBackoff(() => firebaseSaveLogs([entry])).catch((err) =>
+      console.info('[Storage Backoff Info] Add/update log retry failed:', err)
+    );
   }
   return logs;
 }
@@ -615,7 +653,9 @@ export function saveStoredSchoolConfig(config: MonthlyReportConfig): void {
   localStorage.setItem(KEYS.SCHOOL_CONFIG, JSON.stringify(config));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    firebaseSaveSchoolConfig(config);
+    retryWithExponentialBackoff(() => firebaseSaveSchoolConfig(config)).catch((err) =>
+      console.info('[Storage Backoff Info] Save school config retry failed:', err)
+    );
   }
 }
 
@@ -634,7 +674,9 @@ export function saveBKNote(note: BKCounselingNote): BKCounselingNote[] {
   localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(notes));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    firebaseSaveBKNotes(notes);
+    retryWithExponentialBackoff(() => firebaseSaveBKNotes(notes)).catch((err) =>
+      console.info('[Storage Backoff Info] Save BK note retry failed:', err)
+    );
   }
   return notes;
 }
@@ -692,7 +734,9 @@ export function saveCustomPassword(userId: string, newPass: string): void {
   localStorage.setItem(KEYS.CUSTOM_PASSWORDS, JSON.stringify(map));
   notifyDataChanged();
   if (!isRemoteUpdating) {
-    firebaseSaveCustomPassword(userId, newPass);
+    retryWithExponentialBackoff(() => firebaseSaveCustomPassword(userId, newPass)).catch((err) =>
+      console.info('[Storage Backoff Info] Save custom password retry failed:', err)
+    );
   }
 }
 
@@ -786,7 +830,7 @@ export function importFullBackupJSON(jsonText: string): RestoreResult {
       if (!isRemoteUpdating) {
         Object.entries(data.customPasswords).forEach(([uid, pass]) => {
           if (typeof pass === 'string') {
-            firebaseSaveCustomPassword(uid, pass);
+            retryWithExponentialBackoff(() => firebaseSaveCustomPassword(uid, pass)).catch(() => {});
           }
         });
       }
@@ -803,7 +847,7 @@ export function importFullBackupJSON(jsonText: string): RestoreResult {
       localStorage.setItem(KEYS.BK_NOTES, JSON.stringify(data.bkNotes));
       bkNotesRestored = data.bkNotes.length;
       if (!isRemoteUpdating) {
-        firebaseSaveBKNotes(data.bkNotes);
+        retryWithExponentialBackoff(() => firebaseSaveBKNotes(data.bkNotes)).catch(() => {});
       }
     }
 
