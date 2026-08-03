@@ -43,22 +43,40 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
     };
   }, []);
 
+  // Helper to normalize class names (e.g. '7A' vs '7 A')
+  const normalizeClass = (cls?: string) => {
+    if (!cls) return '';
+    return cls.replace(/\s+/g, '').toUpperCase();
+  };
+
   // Helper to match log to student
-  const isStudentLog = (logStudentId: string, student: User) => {
-    if (!logStudentId || !student) return false;
-    const target = logStudentId.trim().toLowerCase();
-    return (
-      target === student.id.trim().toLowerCase() ||
-      (student.username && target === student.username.trim().toLowerCase()) ||
-      (student.name && target === student.name.trim().toLowerCase())
-    );
+  const isStudentLog = (logStudentId: string, student: User, logId?: string) => {
+    if (!student) return false;
+    const sId = student.id ? student.id.trim().toLowerCase() : '';
+    const sUsername = student.username ? student.username.trim().toLowerCase() : '';
+    const sName = student.name ? student.name.trim().toLowerCase() : '';
+
+    if (logStudentId) {
+      const target = logStudentId.trim().toLowerCase();
+      if (
+        (sId && target === sId) ||
+        (sUsername && target === sUsername) ||
+        (sName && target === sName)
+      ) {
+        return true;
+      }
+    }
+    if (logId && sId && logId.toLowerCase().includes(sId)) {
+      return true;
+    }
+    return false;
   };
 
   // Filter students belonging to this class
   const classStudents = React.useMemo(() => {
-    const targetCls = assignedClass.trim().toUpperCase();
+    const targetCls = normalizeClass(assignedClass);
     return allUsers.filter(
-      (u) => u.role === 'siswa' && u.assignedClass && u.assignedClass.trim().toUpperCase() === targetCls
+      (u) => u.role === 'siswa' && u.assignedClass && normalizeClass(u.assignedClass) === targetCls
     );
   }, [allUsers, assignedClass]);
 
@@ -67,27 +85,15 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
     return classStudents.filter((s) => s.name.toLowerCase().includes(sTerm));
   }, [classStudents, searchTerm]);
 
-  // Set of student IDs/names for fast lookup
-  const classStudentIdSet = React.useMemo(() => {
-    const set = new Set<string>();
-    classStudents.forEach((s) => {
-      if (s.id) set.add(s.id.trim().toLowerCase());
-      if (s.username) set.add(s.username.trim().toLowerCase());
-      if (s.name) set.add(s.name.trim().toLowerCase());
-    });
-    return set;
-  }, [classStudents]);
-
   // Filter logs for this class
   const classLogs = React.useMemo(() => {
-    return allLogs.filter((l) => {
-      if (!l.studentId) return false;
-      return classStudentIdSet.has(l.studentId.trim().toLowerCase());
-    });
-  }, [allLogs, classStudentIdSet]);
+    return allLogs.filter((l) =>
+      classStudents.some((s) => isStudentLog(l.studentId, s, l.id))
+    );
+  }, [allLogs, classStudents]);
 
   const dailyClassLogs = React.useMemo(() => {
-    return classLogs.filter((l) => l.date === selectedDate);
+    return classLogs.filter((l) => l.date && l.date.trim() === selectedDate.trim());
   }, [classLogs, selectedDate]);
 
   // Daily statistics for this class
@@ -285,7 +291,7 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
                 </tr>
               ) : (
                 filteredStudents.map((student, idx) => {
-                  const studentLog = dailyClassLogs.find((l) => isStudentLog(l.studentId, student));
+                  const studentLog = dailyClassLogs.find((l) => isStudentLog(l.studentId, student, l.id));
 
                   return (
                     <tr key={student.id} className="hover:bg-amber-50/50 transition-colors">
@@ -337,7 +343,7 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
       {selectedStudentForReport && (
         <MonthlyReportModal
           student={selectedStudentForReport}
-          logs={allLogs.filter((l) => isStudentLog(l.studentId, selectedStudentForReport))}
+          logs={allLogs.filter((l) => isStudentLog(l.studentId, selectedStudentForReport, l.id))}
           month={currentMonthNum}
           year={currentYearNum}
           config={{

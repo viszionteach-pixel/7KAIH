@@ -187,9 +187,13 @@ function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
           const t = new Date(ts).getTime();
           return isNaN(t) ? 0 : t;
         };
-        const localTime = parseTime(ll.fillTimestamp) || Date.now();
+        const localTime = parseTime(ll.fillTimestamp);
         const remoteTime = parseTime(rl.fillTimestamp);
-        if (localTime >= remoteTime) {
+
+        // If remote has filled habits and local is empty or has fewer completed habits, prefer remote unless local is strictly newer
+        if (rl.completedCount > ll.completedCount && remoteTime >= localTime) {
+          mergedMap.set(ll.id, rl);
+        } else if (localTime > remoteTime || (localTime === remoteTime && ll.completedCount >= rl.completedCount)) {
           mergedMap.set(ll.id, ll);
           logsToPush.push(ll);
         } else {

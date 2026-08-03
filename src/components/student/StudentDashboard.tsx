@@ -75,7 +75,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
     isLoadedRef.current = false;
     const loadLogs = () => {
       const allLogs = getStoredLogs();
-      const myLogs = allLogs.filter((l) => l.studentId === currentUser.id);
+      const uId = currentUser.id ? currentUser.id.trim().toLowerCase() : '';
+      const uUsername = currentUser.username ? currentUser.username.trim().toLowerCase() : '';
+      const uName = currentUser.name ? currentUser.name.trim().toLowerCase() : '';
+
+      const myLogs = allLogs.filter((l) => {
+        if (!l.studentId) return false;
+        const target = l.studentId.trim().toLowerCase();
+        return (
+          target === uId ||
+          (uUsername && target === uUsername) ||
+          (uName && target === uName) ||
+          (l.id && uId && l.id.toLowerCase().includes(uId))
+        );
+      });
       setLogs(myLogs);
 
       // Skip resetting form controls if the update was triggered by local student edits
@@ -135,7 +148,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
 
       setTimeout(() => {
         isLoadedRef.current = true;
-      }, 50);
+      }, 400);
     };
 
     loadLogs();

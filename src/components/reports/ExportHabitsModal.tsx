@@ -38,14 +38,31 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const isStudentLog = (logStudentId: string, student: User) => {
-    if (!logStudentId || !student) return false;
-    const target = logStudentId.trim().toLowerCase();
-    return (
-      target === student.id.trim().toLowerCase() ||
-      (student.username && target === student.username.trim().toLowerCase()) ||
-      (student.name && target === student.name.trim().toLowerCase())
-    );
+  const normalizeClass = (cls?: string) => {
+    if (!cls) return '';
+    return cls.replace(/\s+/g, '').toUpperCase();
+  };
+
+  const isStudentLog = (logStudentId: string, student: User, logId?: string) => {
+    if (!student) return false;
+    const sId = student.id ? student.id.trim().toLowerCase() : '';
+    const sUsername = student.username ? student.username.trim().toLowerCase() : '';
+    const sName = student.name ? student.name.trim().toLowerCase() : '';
+
+    if (logStudentId) {
+      const target = logStudentId.trim().toLowerCase();
+      if (
+        (sId && target === sId) ||
+        (sUsername && target === sUsername) ||
+        (sName && target === sName)
+      ) {
+        return true;
+      }
+    }
+    if (logId && sId && logId.toLowerCase().includes(sId)) {
+      return true;
+    }
+    return false;
   };
 
   // Filter students
@@ -53,7 +70,7 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
     if (u.role !== 'siswa') return false;
     if (
       selectedClass !== 'ALL' &&
-      (!u.assignedClass || u.assignedClass.trim().toUpperCase() !== selectedClass.trim().toUpperCase())
+      (!u.assignedClass || normalizeClass(u.assignedClass) !== normalizeClass(selectedClass))
     )
       return false;
     return true;
@@ -66,12 +83,12 @@ export const ExportHabitsModal: React.FC<ExportHabitsModalProps> = ({
   const monthPrefix = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
 
   const monthLogs = allLogs.filter(
-    (l) => l.date.startsWith(monthPrefix) && students.some((s) => isStudentLog(l.studentId, s))
+    (l) => l.date && l.date.startsWith(monthPrefix) && students.some((s) => isStudentLog(l.studentId, s, l.id))
   );
 
   // Summary per student
   const studentSummaries = students.map((st) => {
-    const stLogs = monthLogs.filter((l) => isStudentLog(l.studentId, st));
+    const stLogs = monthLogs.filter((l) => isStudentLog(l.studentId, st, l.id));
     const filledDays = stLogs.length;
     const totalCompleted = stLogs.reduce((acc, curr) => acc + curr.completedCount, 0);
     const maxPossible = daysInMonth * 7;

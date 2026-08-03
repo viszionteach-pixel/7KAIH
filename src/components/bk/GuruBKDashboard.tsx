@@ -51,35 +51,38 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
     return allUsers.filter((u) => u.role === 'siswa');
   }, [allUsers]);
 
-  // Index daily logs by studentId / username / name for O(1) fast lookup
-  const dailyLogsMap = React.useMemo(() => {
-    const map = new Map<string, KAIHEntry>();
-    allLogs.forEach((l) => {
-      if (l.date === selectedDate && l.studentId) {
-        map.set(l.studentId.trim().toLowerCase(), l);
-      }
-    });
-    return map;
-  }, [allLogs, selectedDate]);
+  const normalizeClass = (cls?: string) => {
+    if (!cls) return '';
+    return cls.replace(/\s+/g, '').toUpperCase();
+  };
 
   const getStudentLog = React.useCallback((student: User): KAIHEntry | undefined => {
     if (!student) return undefined;
     const sId = student.id ? student.id.trim().toLowerCase() : '';
     const sUsername = student.username ? student.username.trim().toLowerCase() : '';
     const sName = student.name ? student.name.trim().toLowerCase() : '';
-    return dailyLogsMap.get(sId) || (sUsername ? dailyLogsMap.get(sUsername) : undefined) || (sName ? dailyLogsMap.get(sName) : undefined);
-  }, [dailyLogsMap]);
+
+    return allLogs.find((l) => {
+      if (!l.date || l.date.trim() !== selectedDate.trim()) return false;
+      const target = l.studentId ? l.studentId.trim().toLowerCase() : '';
+      return (
+        (sId && target === sId) ||
+        (sUsername && target === sUsername) ||
+        (sName && target === sName) ||
+        (l.id && sId && l.id.toLowerCase().includes(sId))
+      );
+    });
+  }, [allLogs, selectedDate]);
 
   // Filter students by class and search
   const filteredStudents = React.useMemo(() => {
     const sTerm = searchTerm.toLowerCase();
-    const classFilter = selectedClassFilter.trim().toUpperCase();
 
     return allStudents.filter((student) => {
       const matchesClass =
         selectedClassFilter === 'ALL' ||
         (student.assignedClass &&
-          student.assignedClass.trim().toUpperCase() === classFilter);
+          normalizeClass(student.assignedClass) === normalizeClass(selectedClassFilter));
       const matchesSearch =
         !sTerm ||
         student.name.toLowerCase().includes(sTerm) ||
