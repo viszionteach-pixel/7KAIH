@@ -39,15 +39,13 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 
-const databaseId = (appletConfig as any).firestoreDatabaseId || metaEnv.VITE_FIREBASE_DATABASE_ID;
-
 export const db = (() => {
   try {
     return initializeFirestore(app, {
       experimentalAutoDetectLongPolling: true,
-    }, databaseId);
+    });
   } catch {
-    return databaseId ? getFirestore(app, databaseId) : getFirestore(app);
+    return getFirestore(app);
   }
 })();
 
