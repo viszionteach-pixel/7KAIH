@@ -3,6 +3,9 @@ import path from 'path';
 import pg from 'pg';
 import { createServer as createViteServer } from 'vite';
 
+// Allow self-signed certificate chains for Aiven cloud PostgreSQL
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 const app = express();
 const PORT = 3000;
 
@@ -16,18 +19,25 @@ let runtimeConnectionString =
 
 let pool: pg.Pool | null = null;
 
+function cleanConnectionString(connStr: string): string {
+  if (!connStr) return '';
+  // Remove sslmode query parameter so node pg uses explicit ssl config
+  return connStr.replace(/([?&])sslmode=[^&]*&?/g, '$1').replace(/[?&]$/, '');
+}
+
 function getPool(connStr?: string): pg.Pool | null {
-  const url = connStr || runtimeConnectionString;
-  if (!url) return null;
+  const rawUrl = connStr || runtimeConnectionString;
+  if (!rawUrl) return null;
 
   if (!pool || (connStr && connStr !== runtimeConnectionString)) {
     if (pool) {
       pool.end().catch(() => {});
     }
-    runtimeConnectionString = url;
+    runtimeConnectionString = rawUrl;
+    const cleanUrl = cleanConnectionString(rawUrl);
     pool = new pg.Pool({
-      connectionString: url,
-      ssl: url.includes('sslmode=disable') ? false : { rejectUnauthorized: false },
+      connectionString: cleanUrl,
+      ssl: rawUrl.includes('sslmode=disable') ? false : { rejectUnauthorized: false },
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
     });
@@ -109,8 +119,9 @@ app.get('/api/aiven/status', async (req, res) => {
   }
 
   try {
+    const cleanUrl = cleanConnectionString(connStr);
     const testPool = new pg.Pool({
-      connectionString: connStr,
+      connectionString: cleanUrl,
       ssl: connStr.includes('sslmode=disable') ? false : { rejectUnauthorized: false },
       connectionTimeoutMillis: 5000,
     });
@@ -398,6 +409,36 @@ app.post('/api/aiven/bk-notes', async (req, res) => {
     } finally {
       client.release();
     }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// STATS API
+app.get('/api/aiven/stats', async (req, res) => {
+  const p = getPool();
+  if (!p) return res.json({ configured: false });
+
+  try {
+    await initAivenSchema(p);
+    const [uRes, lRes, cRes, bRes, pRes] = await Promise.all([
+      p.query('SELECT COUNT(*) as count FROM kaih_users'),
+      p.query('SELECT COUNT(*) as count FROM kaih_logs'),
+      p.query('SELECT COUNT(*) as count FROM kaih_school_config'),
+      p.query('SELECT COUNT(*) as count FROM kaih_bk_notes'),
+      p.query('SELECT COUNT(*) as count FROM kaih_passwords'),
+    ]);
+
+    return res.json({
+      configured: true,
+      stats: {
+        usersCount: parseInt(uRes.rows[0]?.count || '0', 10),
+        logsCount: parseInt(lRes.rows[0]?.count || '0', 10),
+        configCount: parseInt(cRes.rows[0]?.count || '0', 10),
+        bkNotesCount: parseInt(bRes.rows[0]?.count || '0', 10),
+        passwordsCount: parseInt(pRes.rows[0]?.count || '0', 10),
+      },
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

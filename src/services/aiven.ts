@@ -194,3 +194,23 @@ export async function aivenSaveCustomPassword(userId: string, pass: string): Pro
     return false;
   }
 }
+
+export interface AivenStats {
+  usersCount: number;
+  logsCount: number;
+  configCount: number;
+  bkNotesCount: number;
+  passwordsCount: number;
+}
+
+export async function aivenFetchStats(): Promise<AivenStats | null> {
+  try {
+    const res = await fetch('/api/aiven/stats');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.configured || !data.stats) return null;
+    return data.stats;
+  } catch {
+    return null;
+  }
+}

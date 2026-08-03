@@ -10,9 +10,13 @@ import { ALL_CLASSES } from '../../data/initialData';
 import {
   getStoredUsers, saveStoredUsers, getStoredSchoolConfig, saveStoredSchoolConfig,
   saveCustomPassword, getCustomPasswords, resetAllDataToDefault, getStoredLogs,
-  exportFullBackupJSON, importFullBackupJSON, cleanAndResyncSupabaseCloud
+  exportFullBackupJSON, importFullBackupJSON, cleanAndResyncSupabaseCloud, getStoredBKNotes
 } from '../../services/storage';
-import { checkAivenStatus, setAivenConfigUrl, getSavedAivenUrl, AivenStatusResponse } from '../../services/aiven';
+import {
+  checkAivenStatus, setAivenConfigUrl, getSavedAivenUrl, AivenStatusResponse,
+  aivenFetchStats, AivenStats, aivenSyncAndCleanUsers, aivenSyncAndCleanLogs,
+  aivenSaveSchoolConfig, aivenSaveBKNotes, aivenSaveCustomPassword
+} from '../../services/aiven';
 import { StudentImportModal } from './StudentImportModal';
 import { ExportHabitsModal } from '../reports/ExportHabitsModal';
 
@@ -92,11 +96,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   // Aiven Database State
   const [aivenInputUrl, setAivenInputUrl] = useState<string>(getSavedAivenUrl());
   const [aivenStatus, setAivenStatus] = useState<AivenStatusResponse | null>(null);
+  const [aivenStats, setAivenStats] = useState<AivenStats | null>(null);
   const [isTestingAiven, setIsTestingAiven] = useState<boolean>(false);
   const [isSavingAiven, setIsSavingAiven] = useState<boolean>(false);
+  const [isPushingAiven, setIsPushingAiven] = useState<boolean>(false);
+
+  const refreshAivenStats = async () => {
+    const stats = await aivenFetchStats();
+    setAivenStats(stats);
+  };
 
   useEffect(() => {
-    checkAivenStatus().then((res) => setAivenStatus(res));
+    checkAivenStatus().then((res) => {
+      setAivenStatus(res);
+      if (res.connected) {
+        refreshAivenStats();
+      }
+    });
   }, []);
 
   const handleTestAivenConnection = async () => {
@@ -105,6 +121,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     setAivenStatus(res);
     setIsTestingAiven(false);
     if (res.connected) {
+      refreshAivenStats();
       alert('✓ Koneksi ke Aiven PostgreSQL berhasil terhubung!');
     } else {
       alert(`❌ Koneksi gagal: ${res.error || 'Periksa URL koneksi Aiven Anda'}`);
@@ -119,9 +136,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
       const statusRes = await checkAivenStatus(aivenInputUrl.trim(), true);
       setAivenStatus(statusRes);
       alert('✓ Setelan Aiven.io Database berhasil disimpan dan diaktifkan!');
-      cleanAndResyncSupabaseCloud();
+      await handlePushAllToAiven();
     } else {
       alert(`❌ Gagal menyimpan setelan Aiven: ${res.error}`);
+    }
+  };
+
+  const handlePushAllToAiven = async () => {
+    setIsPushingAiven(true);
+    try {
+      const allUsers = users.length > 0 ? users : getStoredUsers();
+      const allLogs = getStoredLogs();
+      const allConfig = getStoredSchoolConfig();
+      const allNotes = getStoredBKNotes();
+      const allPass = getCustomPasswords();
+
+      const [uOk, lOk, cOk, nOk] = await Promise.all([
+        aivenSyncAndCleanUsers(allUsers),
+        aivenSyncAndCleanLogs(allLogs),
+        aivenSaveSchoolConfig(allConfig),
+        aivenSaveBKNotes(allNotes),
+      ]);
+
+      for (const [uid, pass] of Object.entries(allPass)) {
+        await aivenSaveCustomPassword(uid, pass);
+      }
+
+      await refreshAivenStats();
+      setIsPushingAiven(false);
+      alert(`✓ Sinkronisasi ke Aiven.io Berhasil!\n\n• ${allUsers.length} Pengguna\n• ${allLogs.length} Jurnal Amalan\n• Konfigurasi Sekolah & BK Notes\n\nTabel di Aiven.io telah terisi sepenuhnya.`);
+    } catch (err: any) {
+      setIsPushingAiven(false);
+      alert(`❌ Gagal migrasi data ke Aiven.io: ${err.message || 'Terjadi kesalahan'}`);
     }
   };
 
@@ -1422,7 +1468,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                 </div>
               )}
 
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-2 pt-1">
                 <button
                   type="button"
                   onClick={handleTestAivenConnection}
@@ -1430,7 +1476,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 disabled:opacity-50 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isTestingAiven ? 'animate-spin' : ''}`} />
-                  {isTestingAiven ? 'Menguji Connection...' : 'Tes Koneksi Aiven'}
+                  {isTestingAiven ? 'Menguji...' : 'Tes Koneksi Aiven'}
                 </button>
 
                 <button
@@ -1442,7 +1488,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                   <Save className="w-3.5 h-3.5" />
                   {isSavingAiven ? 'Menyimpan...' : 'Simpan & Aktifkan Aiven DB'}
                 </button>
+
+                {aivenStatus?.connected && (
+                  <button
+                    type="button"
+                    onClick={handlePushAllToAiven}
+                    disabled={isPushingAiven}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 font-extrabold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all shadow-xs"
+                  >
+                    <Upload className={`w-3.5 h-3.5 ${isPushingAiven ? 'animate-spin' : ''}`} />
+                    {isPushingAiven ? 'Memindahkan Data...' : 'Migrasikan Data ke Aiven.io Sekarang'}
+                  </button>
+                )}
               </div>
+
+              {/* Aiven Table Row Counts */}
+              {aivenStatus?.connected && (
+                <div className="mt-4 pt-4 border-t border-indigo-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-700">Status Jumlah Baris Tabel Aiven.io:</span>
+                    <button
+                      type="button"
+                      onClick={refreshAivenStats}
+                      className="text-[11px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Refresh Status Tabel
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl">
+                      <p className="text-[10px] uppercase font-bold text-slate-500">kaih_users</p>
+                      <p className="text-base font-black text-indigo-700">{aivenStats?.usersCount ?? 0}</p>
+                      <p className="text-[10px] text-slate-500">Pengguna</p>
+                    </div>
+                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl">
+                      <p className="text-[10px] uppercase font-bold text-slate-500">kaih_logs</p>
+                      <p className="text-base font-black text-indigo-700">{aivenStats?.logsCount ?? 0}</p>
+                      <p className="text-[10px] text-slate-500">Jurnal Log</p>
+                    </div>
+                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl">
+                      <p className="text-[10px] uppercase font-bold text-slate-500">kaih_school_config</p>
+                      <p className="text-base font-black text-indigo-700">{aivenStats?.configCount ?? 0}</p>
+                      <p className="text-[10px] text-slate-500">Config</p>
+                    </div>
+                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl">
+                      <p className="text-[10px] uppercase font-bold text-slate-500">kaih_bk_notes</p>
+                      <p className="text-base font-black text-indigo-700">{aivenStats?.bkNotesCount ?? 0}</p>
+                      <p className="text-[10px] text-slate-500">Catatan BK</p>
+                    </div>
+                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl">
+                      <p className="text-[10px] uppercase font-bold text-slate-500">kaih_passwords</p>
+                      <p className="text-base font-black text-indigo-700">{aivenStats?.passwordsCount ?? 0}</p>
+                      <p className="text-[10px] text-slate-500">Kredensial</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
