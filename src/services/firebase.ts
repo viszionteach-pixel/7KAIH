@@ -380,3 +380,153 @@ export function subscribeToFirebaseRealtime(onDataChange: () => void): () => voi
   }
 }
 
+// ================= DIAGNOSTICS SUITE =================
+export interface FirestoreDiagnosticResult {
+  timestamp: string;
+  isAppInitialized: boolean;
+  projectId: string;
+  dbInitialized: boolean;
+  onlineStatus: boolean;
+  collections: {
+    name: string;
+    accessible: boolean;
+    docCount: number;
+    latencyMs: number;
+    fromCache: boolean;
+    error?: string;
+  }[];
+  writeTest: {
+    successful: boolean;
+    latencyMs: number;
+    error?: string;
+  };
+  overallStatus: 'HEALTHY' | 'DEGRADED' | 'DISCONNECTED';
+}
+
+export async function runFirestoreDiagnostics(): Promise<FirestoreDiagnosticResult> {
+  console.group('%c🔥 [Firestore Diagnostics Suite]', 'color: #f59e0b; font-weight: bold; font-size: 14px;');
+  
+  const projectId = firebaseConfig.projectId || 'Unknown';
+  console.log(`%c[Firebase Config]`, 'color: #3b82f6; font-weight: bold;', {
+    appName: app.name,
+    projectId,
+    authDomain: firebaseConfig.authDomain,
+    apiKeyProvided: !!firebaseConfig.apiKey,
+    online: navigator.onLine
+  });
+
+  const collectionsToTest = [
+    'kaih_users',
+    'kaih_logs',
+    'kaih_school_config',
+    'kaih_bk_notes',
+    'kaih_passwords'
+  ];
+
+  const results: FirestoreDiagnosticResult['collections'] = [];
+
+  for (const colName of collectionsToTest) {
+    const colStart = Date.now();
+    try {
+      const colRef = collection(db, colName);
+      const snap = await fetchDocsWithFallback(colRef);
+      const latency = Date.now() - colStart;
+      const fromCache = snap?.metadata?.fromCache ?? false;
+      const docCount = snap?.size ?? 0;
+      
+      results.push({
+        name: colName,
+        accessible: true,
+        docCount,
+        latencyMs: latency,
+        fromCache,
+      });
+
+      console.log(`%c✔ Collection '${colName}'`, 'color: #10b981;', {
+        docCount,
+        latencyMs: `${latency}ms`,
+        source: fromCache ? 'IndexedDB Cache' : 'Cloud Firestore Server'
+      });
+    } catch (err: any) {
+      const latency = Date.now() - colStart;
+      results.push({
+        name: colName,
+        accessible: false,
+        docCount: 0,
+        latencyMs: latency,
+        fromCache: false,
+        error: err?.message || String(err)
+      });
+      console.warn(`%c❌ Collection '${colName}' failed`, 'color: #ef4444;', {
+        latencyMs: `${latency}ms`,
+        error: err?.message || err
+      });
+    }
+  }
+
+  // Write ping test
+  let writeTestResult = { successful: false, latencyMs: 0, error: undefined as string | undefined };
+  const writeStart = Date.now();
+  try {
+    const testDocRef = doc(db, '_diagnostics', 'ping');
+    await withTimeout(setDoc(testDocRef, { ping: true, timestamp: new Date().toISOString() }), 5000);
+    writeTestResult = {
+      successful: true,
+      latencyMs: Date.now() - writeStart,
+      error: undefined
+    };
+    console.log(`%c✔ Diagnostic Write Ping Test`, 'color: #10b981;', `${writeTestResult.latencyMs}ms`);
+  } catch (err: any) {
+    writeTestResult = {
+      successful: false,
+      latencyMs: Date.now() - writeStart,
+      error: err?.message || String(err)
+    };
+    console.info(`%c⚠️ Diagnostic Write Ping Test Info`, 'color: #f59e0b;', err?.message || err);
+  }
+
+  const accessibleCount = results.filter((r) => r.accessible).length;
+  let overallStatus: FirestoreDiagnosticResult['overallStatus'] = 'HEALTHY';
+  if (accessibleCount === 0) {
+    overallStatus = 'DISCONNECTED';
+  } else if (accessibleCount < results.length || !writeTestResult.successful) {
+    overallStatus = 'DEGRADED';
+  }
+
+  console.table(
+    results.map((r) => ({
+      Collection: r.name,
+      Status: r.accessible ? '✅ OK' : '❌ Failed',
+      'Docs Count': r.docCount,
+      'Latency (ms)': r.latencyMs,
+      Source: r.fromCache ? 'Cache' : 'Server',
+      Error: r.error || '-'
+    }))
+  );
+
+  console.log(
+    `%cOverall Firestore Status: ${overallStatus}`,
+    `color: ${overallStatus === 'HEALTHY' ? '#10b981' : overallStatus === 'DEGRADED' ? '#f59e0b' : '#ef4444'}; font-weight: bold; font-size: 12px;`
+  );
+  console.groupEnd();
+
+  const fullResult: FirestoreDiagnosticResult = {
+    timestamp: new Date().toISOString(),
+    isAppInitialized: !!app,
+    projectId,
+    dbInitialized: !!db,
+    onlineStatus: navigator.onLine,
+    collections: results,
+    writeTest: writeTestResult,
+    overallStatus
+  };
+
+  return fullResult;
+}
+
+// Bind to window for instant console execution
+if (typeof window !== 'undefined') {
+  (window as any).runFirestoreDiagnostics = runFirestoreDiagnostics;
+}
+
+

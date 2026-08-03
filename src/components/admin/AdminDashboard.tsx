@@ -14,6 +14,7 @@ import {
 } from '../../services/storage';
 import { StudentImportModal } from './StudentImportModal';
 import { ExportHabitsModal } from '../reports/ExportHabitsModal';
+import { FirestoreDiagnostics } from './FirestoreDiagnostics';
 
 import { compressImage } from '../../utils/imageCompressor';
 
@@ -1340,6 +1341,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
               </label>
             </div>
           </div>
+
+          {/* FIRESTORE DIAGNOSTICS UTILITY */}
+          <FirestoreDiagnostics />
 
           {/* PURGE / CLEAN & RESYNC FIRESTORE TABLES CARD */}
           <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl space-y-4">
