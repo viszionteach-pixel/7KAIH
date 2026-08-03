@@ -107,12 +107,24 @@ function withTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
 
 // Fetch helper with IndexedDB cache fallback on timeout or error
 async function fetchDocsWithFallback(colRef: any) {
+  // First check if IndexedDB cache already has documents for immediate response
   try {
-    return await withTimeout(getDocs(colRef), 10000);
+    const cacheSnap = await getDocsFromCache(colRef);
+    if (cacheSnap && !cacheSnap.empty) {
+      // Background sync to keep cache fresh
+      getDocs(colRef).catch(() => {});
+      return cacheSnap;
+    }
+  } catch {}
+
+  // If cache is empty, fetch from server with a generous 30s timeout (essential for 1,100+ documents on mobile 4G)
+  try {
+    return await withTimeout(getDocs(colRef), 30000);
   } catch (err) {
+    // Secondary attempt from cache in case server timed out or went offline mid-request
     try {
       const cacheSnap = await getDocsFromCache(colRef);
-      if (cacheSnap && !cacheSnap.empty) return cacheSnap;
+      if (cacheSnap) return cacheSnap;
     } catch {}
     throw err;
   }
@@ -120,7 +132,15 @@ async function fetchDocsWithFallback(colRef: any) {
 
 async function fetchDocWithFallback(docRef: any) {
   try {
-    return await withTimeout(getDoc(docRef), 10000);
+    const cacheSnap = await getDocFromCache(docRef);
+    if (cacheSnap && cacheSnap.exists()) {
+      getDoc(docRef).catch(() => {});
+      return cacheSnap;
+    }
+  } catch {}
+
+  try {
+    return await withTimeout(getDoc(docRef), 20000);
   } catch (err) {
     try {
       const cacheSnap = await getDocFromCache(docRef);
@@ -130,7 +150,7 @@ async function fetchDocWithFallback(docRef: any) {
   }
 }
 
-// Helper to chunk batch operations (max 400 operations per batch)
+// Helper to chunk batch operations (max 100 operations per batch for fast mobile processing)
 async function commitDocsInBatches<T>(
   items: T[],
   processItem: (batch: ReturnType<typeof writeBatch>, item: T) => void
@@ -138,12 +158,12 @@ async function commitDocsInBatches<T>(
   if (!db) return false;
   if (items.length === 0) return true;
   try {
-    const chunkSize = 400;
+    const chunkSize = 100;
     for (let i = 0; i < items.length; i += chunkSize) {
       const chunk = items.slice(i, i + chunkSize);
       const batch = writeBatch(db);
       chunk.forEach((item) => processItem(batch, item));
-      await withTimeout(batch.commit(), 15000);
+      await withTimeout(batch.commit(), 30000);
     }
     return true;
   } catch (err) {
