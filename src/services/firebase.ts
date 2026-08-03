@@ -10,43 +10,60 @@ import {
   collection,
   getDocs,
   writeBatch,
-  onSnapshot
+  onSnapshot,
+  getDocFromServer
 } from 'firebase/firestore';
+import appletConfig from '../../firebase-applet-config.json';
+import { User, KAIHEntry, MonthlyReportConfig, BKCounselingNote } from '../types';
 
 // Suppress internal Firestore connection warnings in browser logs
 try {
   setLogLevel('silent');
 } catch {}
-import { User, KAIHEntry, MonthlyReportConfig, BKCounselingNote } from '../types';
 
 const metaEnv = (import.meta as any).env || {};
 
 const firebaseConfig = {
-  apiKey: metaEnv.VITE_FIREBASE_API_KEY || "AIzaSyAvmuax4zhITaMq9Ya3kGWDZvmVL5lLR-A",
-  authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN || "school-6356a.firebaseapp.com",
-  projectId: metaEnv.VITE_FIREBASE_PROJECT_ID || "school-6356a",
-  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || "school-6356a.firebasestorage.app",
-  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || "547857176289",
-  appId: metaEnv.VITE_FIREBASE_APP_ID || "1:547857176289:web:0d1de8ada0b9b9786589a0",
-  measurementId: metaEnv.VITE_FIREBASE_MEASUREMENT_ID || "G-4SNC5HLSF4"
+  apiKey: metaEnv.VITE_FIREBASE_API_KEY || appletConfig.apiKey,
+  authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN || appletConfig.authDomain,
+  projectId: metaEnv.VITE_FIREBASE_PROJECT_ID || appletConfig.projectId,
+  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || appletConfig.storageBucket,
+  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || appletConfig.messagingSenderId,
+  appId: metaEnv.VITE_FIREBASE_APP_ID || appletConfig.appId,
+  measurementId: metaEnv.VITE_FIREBASE_MEASUREMENT_ID || appletConfig.measurementId || ""
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
+
+const databaseId = (appletConfig as any).firestoreDatabaseId || metaEnv.VITE_FIREBASE_DATABASE_ID;
 
 export const db = (() => {
   try {
     return initializeFirestore(app, {
       experimentalAutoDetectLongPolling: true,
-    });
+    }, databaseId);
   } catch {
-    return getFirestore(app);
+    return databaseId ? getFirestore(app, databaseId) : getFirestore(app);
   }
 })();
 
 export const isFirebaseConfigured = true;
 
+// Helper to test connection on boot
+async function testConnection() {
+  try {
+    if (db) {
+      await getDocFromServer(doc(db, 'kaih_school_config', 'main'));
+      console.log('Successfully connected to Firebase Firestore!');
+    }
+  } catch (error) {
+    console.log('Firebase connection ready or initializing:', error);
+  }
+}
+testConnection();
+
 // Helper to prevent Firestore offline/network hangs
-function withTimeout<T>(promise: Promise<T>, ms = 4000): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error('Firebase operation timed out'));
@@ -63,21 +80,34 @@ function withTimeout<T>(promise: Promise<T>, ms = 4000): Promise<T> {
   });
 }
 
-// ================= USERS =================
-export async function firebaseSaveUsers(users: User[]): Promise<boolean> {
-  if (!db) return false;
+// Helper to chunk batch operations (max 400 operations per batch)
+async function commitDocsInBatches<T>(
+  items: T[],
+  processItem: (batch: ReturnType<typeof writeBatch>, item: T) => void
+): Promise<boolean> {
+  if (!db || items.length === 0) return true;
   try {
-    const batch = writeBatch(db);
-    users.forEach((u) => {
-      const userRef = doc(db, 'kaih_users', u.id);
-      batch.set(userRef, { ...u, updatedAt: new Date().toISOString() }, { merge: true });
-    });
-    await withTimeout(batch.commit());
+    const chunkSize = 400;
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+      chunk.forEach((item) => processItem(batch, item));
+      await withTimeout(batch.commit());
+    }
     return true;
   } catch (err) {
-    console.warn('[Firebase Save Users Warning]', err);
+    console.warn('[Firebase Chunked Batch Save Warning]', err);
     return false;
   }
+}
+
+// ================= USERS =================
+export async function firebaseSaveUsers(users: User[]): Promise<boolean> {
+  if (!db || users.length === 0) return false;
+  return commitDocsInBatches(users, (batch, u) => {
+    const userRef = doc(db, 'kaih_users', u.id);
+    batch.set(userRef, { ...u, updatedAt: new Date().toISOString() }, { merge: true });
+  });
 }
 
 export async function firebaseSyncAndCleanUsers(activeUsers: User[]): Promise<boolean> {
@@ -97,9 +127,9 @@ export async function firebaseSyncAndCleanUsers(activeUsers: User[]): Promise<bo
       }
 
       if (orphanedDocs.length > 0) {
-        const batch = writeBatch(db);
-        orphanedDocs.forEach((d) => batch.delete(d.ref));
-        await withTimeout(batch.commit());
+        await commitDocsInBatches(orphanedDocs, (batch, d) => {
+          batch.delete(d.ref);
+        });
       }
     }
     return await firebaseSaveUsers(activeUsers);
@@ -138,19 +168,11 @@ export async function firebaseFetchUsers(): Promise<User[] | null> {
 
 // ================= LOGS =================
 export async function firebaseSaveLogs(logs: KAIHEntry[]): Promise<boolean> {
-  if (!db) return false;
-  try {
-    const batch = writeBatch(db);
-    logs.forEach((log) => {
-      const logRef = doc(db, 'kaih_logs', log.id);
-      batch.set(logRef, { ...log, updatedAt: new Date().toISOString() }, { merge: true });
-    });
-    await withTimeout(batch.commit());
-    return true;
-  } catch (err) {
-    console.warn('[Firebase Save Logs Warning]', err);
-    return false;
-  }
+  if (!db || logs.length === 0) return false;
+  return commitDocsInBatches(logs, (batch, log) => {
+    const logRef = doc(db, 'kaih_logs', log.id);
+    batch.set(logRef, { ...log, updatedAt: new Date().toISOString() }, { merge: true });
+  });
 }
 
 export async function firebaseSyncAndCleanLogs(activeLogs: KAIHEntry[]): Promise<boolean> {
@@ -161,9 +183,9 @@ export async function firebaseSyncAndCleanLogs(activeLogs: KAIHEntry[]): Promise
     const orphanedDocs = snapshot.docs.filter((d) => !activeIds.has(d.id));
 
     if (orphanedDocs.length > 0) {
-      const batch = writeBatch(db);
-      orphanedDocs.forEach((d) => batch.delete(d.ref));
-      await withTimeout(batch.commit());
+      await commitDocsInBatches(orphanedDocs, (batch, d) => {
+        batch.delete(d.ref);
+      });
     }
     return await firebaseSaveLogs(activeLogs);
   } catch (err) {
@@ -214,19 +236,11 @@ export async function firebaseFetchSchoolConfig(): Promise<MonthlyReportConfig |
 
 // ================= BK NOTES =================
 export async function firebaseSaveBKNotes(notes: BKCounselingNote[]): Promise<boolean> {
-  if (!db) return false;
-  try {
-    const batch = writeBatch(db);
-    notes.forEach((note) => {
-      const noteRef = doc(db, 'kaih_bk_notes', note.id);
-      batch.set(noteRef, { ...note, updatedAt: new Date().toISOString() }, { merge: true });
-    });
-    await withTimeout(batch.commit());
-    return true;
-  } catch (err) {
-    console.warn('[Firebase Save BK Notes Warning]', err);
-    return false;
-  }
+  if (!db || notes.length === 0) return false;
+  return commitDocsInBatches(notes, (batch, note) => {
+    const noteRef = doc(db, 'kaih_bk_notes', note.id);
+    batch.set(noteRef, { ...note, updatedAt: new Date().toISOString() }, { merge: true });
+  });
 }
 
 export async function firebaseFetchBKNotes(): Promise<BKCounselingNote[] | null> {

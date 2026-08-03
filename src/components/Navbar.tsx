@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, Info, Shield, User as UserIcon, BookOpen, Clock, RefreshCw, CloudCheck, Wifi, CloudDownload } from 'lucide-react';
+import { LogOut, Info, User as UserIcon, Clock, RefreshCw, CloudCheck, Wifi, Database, CheckCircle2 } from 'lucide-react';
 import { User } from '../types';
 import { SchoolLogo } from './SchoolLogo';
 import { forceFetchFromCloud } from '../services/storage';
@@ -21,6 +21,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [dateStr, setDateStr] = useState<string>('');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleManualSync = async () => {
     setIsSyncing(true);
@@ -73,14 +85,45 @@ export const Navbar: React.FC<NavbarProps> = ({
                   7 Kebiasaan
                 </span>
               </span>
-              <span className="text-[10px] font-bold px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded-full hidden sm:inline-flex items-center gap-1.5">
+
+              {/* Firestore Connection Badge */}
+              <div
+                className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full hidden sm:inline-flex items-center gap-1.5 border transition-all ${
+                  isSyncing
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+                    : !isOnline
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-400/40'
+                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                }`}
+                title={
+                  isSyncing
+                    ? 'Sedang menyinkronkan data dengan Firebase Firestore...'
+                    : !isOnline
+                    ? 'Koneksi internet terputus (mode lokal)'
+                    : 'Terhubung secara realtime ke Google Firebase Firestore'
+                }
+              >
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  <span
+                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                      isSyncing ? 'bg-amber-400' : !isOnline ? 'bg-rose-400' : 'bg-emerald-400'
+                    }`}
+                  ></span>
+                  <span
+                    className={`relative inline-flex rounded-full h-2 w-2 ${
+                      isSyncing ? 'bg-amber-500' : !isOnline ? 'bg-rose-500' : 'bg-emerald-500'
+                    }`}
+                  ></span>
                 </span>
-                <Wifi className="w-3 h-3 text-emerald-400" />
-                Data Tersinkron Cloud
-              </span>
+                <Database className="w-3 h-3 text-amber-400" />
+                <span>
+                  {isSyncing
+                    ? 'Menyinkronkan Firestore...'
+                    : !isOnline
+                    ? 'Mode Lokal (Offline)'
+                    : 'Firestore Connected'}
+                </span>
+              </div>
             </div>
             <p className="text-[11px] text-slate-400 font-medium hidden sm:flex items-center gap-1.5">
               <span>Kebiasaan Anak Indonesia Hebat</span>
@@ -110,7 +153,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={handleManualSync}
             disabled={isSyncing}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700/80 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg border border-emerald-500/50 shadow-sm transition-all disabled:opacity-50"
-            title="Sinkronkan Data Terbaru Langsung dari Supabase Cloud"
+            title="Sinkronkan Data Terbaru Langsung dari Google Firebase Firestore"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan Cloud'}</span>
