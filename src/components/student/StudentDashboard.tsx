@@ -181,7 +181,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
       id: currentEntry?.id || `log-${currentUser.id}-${selectedDate}`,
       studentId: currentUser.id,
       date: selectedDate,
-      fillTimestamp: currentEntry?.fillTimestamp || new Date().toISOString(),
+      fillTimestamp: new Date().toISOString(),
       bangunPagi: {
         checked: bangunPagiChecked,
         jamBangun,
@@ -279,8 +279,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
       {/* Toast Banner */}
       {isSavedToast && (
         <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce">
-          <CheckCircle2 className="w-5 h-5" />
-          <span className="text-xs font-bold">Data 7 KAIH Berhasil Disimpan!</span>
+          <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+          <span className="text-xs font-bold">Data 7 KAIH Berhasil Disimpan & Sinkron ke Firestore!</span>
         </div>
       )}
 
@@ -348,7 +348,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
             <div className="flex items-center gap-2 mt-1">
               <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Tersimpan & Realtime Sinkron Seluruh Perangkat
+                Tersimpan & Realtime Sinkron ke Firestore Database (Dapat Dipantau Wali Kelas & Guru BK)
               </span>
             </div>
           </div>

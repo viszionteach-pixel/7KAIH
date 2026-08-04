@@ -28,12 +28,12 @@ try {
 const metaEnv = (import.meta as any).env || {};
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDBcUA-fMFSEfoyhqDcisnFjwCwAwp2S88",
-  authDomain: "gen-lang-client-0689999528.firebaseapp.com",
-  projectId: "gen-lang-client-0689999528",
-  storageBucket: "gen-lang-client-0689999528.firebasestorage.app",
-  messagingSenderId: "48083963907",
-  appId: "1:48083963907:web:ba21a2f83208f37fe7fe36"
+  apiKey: metaEnv.VITE_FIREBASE_API_KEY || "AIzaSyDBcUA-fMFSEfoyhqDcisnFjwCwAwp2S88",
+  authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN || "gen-lang-client-0689999528.firebaseapp.com",
+  projectId: metaEnv.VITE_FIREBASE_PROJECT_ID || "gen-lang-client-0689999528",
+  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || "gen-lang-client-0689999528.firebasestorage.app",
+  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || "48083963907",
+  appId: metaEnv.VITE_FIREBASE_APP_ID || "1:48083963907:web:ba21a2f83208f37fe7fe36"
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
