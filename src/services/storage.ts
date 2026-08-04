@@ -392,12 +392,12 @@ export async function initFirebaseRealtimeSync() {
       }
     });
 
-    // 4. Background auto-polling timer every 60 seconds when active
+    // 4. Background auto-polling timer every 10 seconds when active for instant sync across devices
     setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         forceFetchFromCloud();
       }
-    }, 60000);
+    }, 10000);
   }
 }
 
