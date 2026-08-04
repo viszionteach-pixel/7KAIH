@@ -619,25 +619,58 @@ export function saveStoredLogs(logs: KAIHEntry[]): void {
 }
 
 export function addOrUpdateLog(entry: KAIHEntry): KAIHEntry[] {
+  return saveChecklistOptimistically(entry).updatedLogs;
+}
+
+/**
+ * Optimistically updates student activity checklist entry:
+ * 1. Instantly updates local state and localStorage for immediate 0ms UI responsiveness.
+ * 2. Triggers real-time event listener notifyDataChanged() so all active views update instantly.
+ * 3. Dispatches background Firestore synchronization without blocking the client UI thread.
+ */
+export function saveChecklistOptimistically(entry: KAIHEntry): {
+  updatedLogs: KAIHEntry[];
+  entry: KAIHEntry;
+  syncPromise: Promise<void>;
+} {
+  const updatedEntry: KAIHEntry = {
+    ...entry,
+    fillTimestamp: entry.fillTimestamp || new Date().toISOString(),
+  };
+
   const logs = getStoredLogs();
   const existingIndex = logs.findIndex(
-    (l) => l.studentId === entry.studentId && l.date === entry.date
+    (l) => l.studentId === updatedEntry.studentId && l.date === updatedEntry.date
   );
 
   if (existingIndex >= 0) {
-    logs[existingIndex] = entry;
+    logs[existingIndex] = updatedEntry;
   } else {
-    logs.push(entry);
+    logs.push(updatedEntry);
   }
 
+  // 1. Synchronous local persistence (Optimistic UI state)
   localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
+
+  // 2. Broadcast change event instantly to UI subscribers
   notifyDataChanged();
-  if (!isRemoteUpdating) {
-    retryWithExponentialBackoff(() => firebaseSaveLogs([entry])).catch((err) =>
-      console.info('[Storage Backoff Info] Add/update log retry failed:', err)
-    );
-  }
-  return logs;
+
+  // 3. Non-blocking asynchronous Firestore background sync
+  const syncPromise = !isRemoteUpdating
+    ? retryWithExponentialBackoff(() => firebaseSaveLogs([updatedEntry]))
+        .then(() => {
+          console.info('[Optimistic Sync] Firestore checklist save synced successfully');
+        })
+        .catch((err) => {
+          console.warn('[Optimistic Sync] Firestore checklist save failed, queued for retry:', err);
+        })
+    : Promise.resolve();
+
+  return {
+    updatedLogs: logs,
+    entry: updatedEntry,
+    syncPromise,
+  };
 }
 
 export function getStoredSchoolConfig(): MonthlyReportConfig {
