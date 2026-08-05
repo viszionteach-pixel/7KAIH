@@ -258,6 +258,34 @@ export async function firebaseSaveLogs(logs: KAIHEntry[]): Promise<boolean> {
   });
 }
 
+// Debounced single-document save to guarantee 1 Write per student per day on Firebase Spark Plan
+const logDebounceTimers = new Map<string, any>();
+const pendingLogUpdates = new Map<string, KAIHEntry>();
+
+export async function firebaseSaveLogDebounced(log: KAIHEntry): Promise<boolean> {
+  if (!db) return false;
+  pendingLogUpdates.set(log.id, log);
+
+  if (logDebounceTimers.has(log.id)) {
+    clearTimeout(logDebounceTimers.get(log.id));
+  }
+
+  return new Promise((resolve) => {
+    const timer = setTimeout(async () => {
+      logDebounceTimers.delete(log.id);
+      const latestLog = pendingLogUpdates.get(log.id);
+      if (latestLog) {
+        pendingLogUpdates.delete(log.id);
+        const success = await firebaseSaveLogs([latestLog]);
+        resolve(success);
+      } else {
+        resolve(true);
+      }
+    }, 1500);
+    logDebounceTimers.set(log.id, timer);
+  });
+}
+
 function getDeletedLogIdsFromStorage(): Set<string> {
   try {
     const data = typeof localStorage !== 'undefined' ? localStorage.getItem('kaih_smpn10_deleted_log_ids_v1') : null;

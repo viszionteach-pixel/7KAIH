@@ -8,6 +8,7 @@ import {
   firebaseDeleteUser,
   firebaseFetchUsers,
   firebaseSaveLogs,
+  firebaseSaveLogDebounced,
   firebaseSyncAndCleanLogs,
   firebaseFetchLogs,
   firebaseSaveSchoolConfig,
@@ -655,11 +656,11 @@ export function saveChecklistOptimistically(entry: KAIHEntry): {
   // 2. Broadcast change event instantly to UI subscribers
   notifyDataChanged();
 
-  // 3. Non-blocking asynchronous Firestore background sync
+  // 3. Non-blocking asynchronous Firestore background sync (Debounced per student per day for Spark plan quota safety)
   const syncPromise = !isRemoteUpdating
-    ? retryWithExponentialBackoff(() => firebaseSaveLogs([updatedEntry]))
+    ? retryWithExponentialBackoff(() => firebaseSaveLogDebounced(updatedEntry))
         .then(() => {
-          console.info('[Optimistic Sync] Firestore checklist save synced successfully');
+          console.info('[Optimistic Sync] Firestore checklist single-doc write synced successfully');
         })
         .catch((err) => {
           console.warn('[Optimistic Sync] Firestore checklist save failed, queued for retry:', err);
