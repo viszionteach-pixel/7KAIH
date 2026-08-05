@@ -371,8 +371,14 @@ export async function firebaseFetchCustomPasswords(): Promise<Record<string, str
     const map: Record<string, string> = {};
     snapshot.docs.forEach((d) => {
       const data = d.data() as any;
-      if (data && data.userId && data.password) {
-        map[data.userId] = data.password;
+      const pass = data?.password || data?.pass;
+      if (pass) {
+        map[d.id] = pass;
+        map[d.id.toLowerCase()] = pass;
+        if (data.userId) {
+          map[data.userId] = pass;
+          map[data.userId.toLowerCase()] = pass;
+        }
       }
     });
     return map;
@@ -386,18 +392,41 @@ export async function firebaseFetchCustomPasswords(): Promise<Record<string, str
 export function subscribeToFirebaseRealtime(onDataChange: () => void): () => void {
   if (!db) return () => {};
   try {
-    const unsub = onSnapshot(
-      collection(db, 'kaih_logs'),
-      (snapshot) => {
-        // Skip firing onDataChange if the snapshot originated from local pending writes
-        if (snapshot.metadata.hasPendingWrites) return;
+    const unsubs: (() => void)[] = [];
+
+    const handleSnapshot = (snapshot: any) => {
+      if (!snapshot.metadata.hasPendingWrites) {
         onDataChange();
-      },
-      (err) => {
-        console.info('[Firebase Realtime Listener Info]', err?.message || err);
       }
+    };
+
+    unsubs.push(
+      onSnapshot(
+        collection(db, 'kaih_logs'),
+        handleSnapshot,
+        (err) => console.info('[Firebase Realtime Listener Logs Info]', err?.message || err)
+      )
     );
-    return unsub;
+
+    unsubs.push(
+      onSnapshot(
+        collection(db, 'kaih_passwords'),
+        handleSnapshot,
+        (err) => console.info('[Firebase Realtime Listener Passwords Info]', err?.message || err)
+      )
+    );
+
+    unsubs.push(
+      onSnapshot(
+        collection(db, 'kaih_users'),
+        handleSnapshot,
+        (err) => console.info('[Firebase Realtime Listener Users Info]', err?.message || err)
+      )
+    );
+
+    return () => {
+      unsubs.forEach((unsub) => unsub());
+    };
   } catch {
     return () => {};
   }

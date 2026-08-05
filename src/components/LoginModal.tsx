@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { LogIn, Key, User as UserIcon, ShieldAlert, Sparkles, HelpCircle, CheckCircle2 } from 'lucide-react';
+import { LogIn, Key, User as UserIcon, ShieldAlert, Sparkles, HelpCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { User, Role } from '../types';
-import { verifyUserLogin, getStoredUsers } from '../services/storage';
+import { verifyUserLogin, getStoredUsers, forceFetchFromCloud } from '../services/storage';
 import { SchoolLogo } from './SchoolLogo';
 
 interface LoginModalProps {
@@ -16,6 +16,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onOpenAb
   const [activeTab, setActiveTab] = useState<'siswa' | 'guru' | 'admin'>('siswa');
   const [logoClickCount, setLogoClickCount] = useState<number>(0);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const users = getStoredUsers();
 
@@ -28,12 +29,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onOpenAb
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
     if (!identifier.trim()) {
-      setErrorMsg('Masukkan Nama Lengkap / Username!');
+      setErrorMsg('Masukkan Nama Lengkap / Username / ID Kelas!');
       return;
     }
     if (!password) {
@@ -41,17 +42,34 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onOpenAb
       return;
     }
 
-    const user = verifyUserLogin(identifier, password);
-    if (user) {
-      onLoginSuccess(user);
-    } else {
-      if (activeTab === 'guru') {
-        setErrorMsg('User ID atau Password Wali Kelas / Guru BK salah. (Contoh User ID: wk-8h | Password: wk8h)');
-      } else if (activeTab === 'admin') {
-        setErrorMsg('Username atau Password Admin / Kepala Sekolah salah. (Password: admin123)');
-      } else {
-        setErrorMsg('Nama atau Password siswa salah. (Format password default: NamaDepan123, cth: Ahmad123)');
+    setIsLoading(true);
+
+    try {
+      // 1. Try local memory/localStorage verification
+      let user = verifyUserLogin(identifier, password);
+
+      // 2. If local check fails, force fetch latest custom passwords & users from Firestore Cloud
+      if (!user) {
+        await forceFetchFromCloud();
+        user = verifyUserLogin(identifier, password);
       }
+
+      if (user) {
+        onLoginSuccess(user);
+      } else {
+        if (activeTab === 'guru') {
+          setErrorMsg('User ID atau Password Wali Kelas / Guru BK salah. (Contoh User ID: wk-7a | Password: wk7a)');
+        } else if (activeTab === 'admin') {
+          setErrorMsg('Username atau Password Admin / Kepala Sekolah salah. (Password: admin123)');
+        } else {
+          setErrorMsg('Nama atau Password siswa salah. (Format password default: NamaDepan123, cth: Ahmad123)');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to verify login:', err);
+      setErrorMsg('Gagal memverifikasi login. Silakan periksa koneksi internet Anda.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -231,10 +249,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onOpenAb
 
               <button
                 type="submit"
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                disabled={isLoading}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
               >
-                <LogIn className="w-4 h-4" />
-                <span>Masuk Sekarang</span>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Memverifikasi...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4" />
+                    <span>Masuk Sekarang</span>
+                  </>
+                )}
               </button>
             </form>
           </div>

@@ -768,7 +768,17 @@ export function verifyUserLogin(inputIdentifier: string, inputPass: string): Use
   if (!user) return null;
 
   const customPassMap = getCustomPasswords();
-  const expectedPass = customPassMap[user.id] || getDefaultPasswordForUser(user);
+  const classCode = user.assignedClass ? user.assignedClass.toLowerCase() : '';
+  const customPass =
+    customPassMap[user.id] ||
+    customPassMap[user.id.toLowerCase()] ||
+    customPassMap[user.username] ||
+    customPassMap[user.username.toLowerCase()] ||
+    (classCode ? customPassMap[`wk-${classCode}`] : null) ||
+    (classCode ? customPassMap[`wk${classCode}`] : null) ||
+    (classCode ? customPassMap[classCode] : null);
+
+  const expectedPass = customPass || getDefaultPasswordForUser(user);
 
   const inputPassClean = inputPass.trim();
   const inputPassLower = inputPassClean.toLowerCase();
@@ -776,6 +786,7 @@ export function verifyUserLogin(inputIdentifier: string, inputPass: string): Use
 
   let isPasswordValid =
     inputPassLower === expectedPassLower ||
+    (customPass && inputPassLower === customPass.toLowerCase()) ||
     inputPassClean === '123456' ||
     inputPassClean === 'admin123';
 
