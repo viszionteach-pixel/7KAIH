@@ -46,12 +46,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onOpenAb
 
     try {
       // 1. Try local memory/localStorage verification
-      let user = verifyUserLogin(identifier, password);
+      let user = verifyUserLogin(identifier, password, activeTab);
 
       // 2. If local check fails, force fetch latest custom passwords & users from Firestore Cloud
       if (!user) {
         await forceFetchFromCloud();
-        user = verifyUserLogin(identifier, password);
+        user = verifyUserLogin(identifier, password, activeTab);
       }
 
       if (user) {

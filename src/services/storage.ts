@@ -728,41 +728,97 @@ export function getDefaultPasswordForUser(user: User): string {
   return 'admin123';
 }
 
-export function verifyUserLogin(inputIdentifier: string, inputPass: string): User | null {
+export function verifyUserLogin(
+  inputIdentifier: string,
+  inputPass: string,
+  activeTab?: 'siswa' | 'guru' | 'admin'
+): User | null {
   const users = getStoredUsers();
   const rawId = inputIdentifier.trim();
   const trimmedId = rawId.toLowerCase();
   const cleanClassCode = trimmedId.replace(/^wk-?/, '').replace(/^walikelas\.?/, '').toLowerCase();
 
-  // Find matching user
-  let user = users.find(
-    (u) =>
-      u.id.toLowerCase() === trimmedId ||
-      u.username.toLowerCase() === trimmedId ||
-      u.name.toLowerCase() === trimmedId ||
-      (u.role === 'wali_kelas' && u.assignedClass && u.assignedClass.toLowerCase() === cleanClassCode) ||
-      (u.assignedClass && u.assignedClass.toLowerCase() === trimmedId) ||
-      (u.assignedClass && `wk-${u.assignedClass.toLowerCase()}` === trimmedId) ||
-      (u.assignedClass && `wk${u.assignedClass.toLowerCase()}` === trimmedId) ||
-      (u.nip && u.nip.trim() === rawId) ||
-      (u.role === 'siswa' && u.name.toLowerCase().startsWith(trimmedId)) ||
-      (u.role === 'wali_kelas' && u.name.toLowerCase().includes(trimmedId))
-  );
+  const isWkFormat = trimmedId.startsWith('wk') || trimmedId.startsWith('walikelas');
+  const isBkFormat = trimmedId.startsWith('bk') || trimmedId.startsWith('gurubk');
+  const isAdminFormat = trimmedId.startsWith('admin');
 
-  // Fallback for Wali Kelas: search in static INITIAL_WALI_KELAS list
-  if (!user) {
-    const initWk = INITIAL_WALI_KELAS.find(
-      (w) =>
-        w.id.toLowerCase() === trimmedId ||
-        w.username.toLowerCase() === trimmedId ||
-        w.assignedClass.toLowerCase() === cleanClassCode ||
-        w.name.toLowerCase().includes(trimmedId) ||
-        `wk-${w.assignedClass.toLowerCase()}` === trimmedId ||
-        `wk${w.assignedClass.toLowerCase()}` === trimmedId
-    );
-    if (initWk) {
-      user = initWk;
+  let user: User | undefined;
+
+  // 1. If tab is 'guru' OR id has wk/bk format, search Wali Kelas and Guru BK FIRST
+  if (activeTab === 'guru' || isWkFormat || isBkFormat) {
+    user = users.find((u) => {
+      if (u.role !== 'wali_kelas' && u.role !== 'guru_bk') return false;
+      if (u.id.toLowerCase() === trimmedId) return true;
+      if (u.username.toLowerCase() === trimmedId) return true;
+      if (u.nip && u.nip.trim() === rawId) return true;
+      if (u.role === 'wali_kelas' && u.assignedClass && u.assignedClass.toLowerCase() === cleanClassCode) return true;
+      if (u.role === 'wali_kelas' && u.assignedClass && `wk-${u.assignedClass.toLowerCase()}` === trimmedId) return true;
+      if (u.role === 'wali_kelas' && u.assignedClass && `wk${u.assignedClass.toLowerCase()}` === trimmedId) return true;
+      if (u.name.toLowerCase() === trimmedId || u.name.toLowerCase().includes(trimmedId)) return true;
+      return false;
+    });
+
+    if (!user && isWkFormat) {
+      user = INITIAL_WALI_KELAS.find(
+        (w) =>
+          w.id.toLowerCase() === trimmedId ||
+          w.username.toLowerCase() === trimmedId ||
+          w.assignedClass.toLowerCase() === cleanClassCode ||
+          `wk-${w.assignedClass.toLowerCase()}` === trimmedId ||
+          `wk${w.assignedClass.toLowerCase()}` === trimmedId ||
+          w.name.toLowerCase().includes(trimmedId)
+      );
     }
+
+    if (!user && isBkFormat) {
+      user = INITIAL_GURU_BK.find(
+        (b) =>
+          b.id.toLowerCase() === trimmedId ||
+          b.username.toLowerCase() === trimmedId ||
+          b.name.toLowerCase().includes(trimmedId)
+      );
+    }
+  }
+
+  // 2. If tab is 'admin' OR id has admin format
+  if (!user && (activeTab === 'admin' || isAdminFormat)) {
+    user = users.find((u) => {
+      if (u.role !== 'admin') return false;
+      if (u.id.toLowerCase() === trimmedId) return true;
+      if (u.username.toLowerCase() === trimmedId) return true;
+      if (u.name.toLowerCase() === trimmedId || u.name.toLowerCase().includes(trimmedId)) return true;
+      return false;
+    });
+
+    if (!user) {
+      user = INITIAL_ADMINS.find(
+        (a) =>
+          a.id.toLowerCase() === trimmedId ||
+          a.username.toLowerCase() === trimmedId ||
+          a.name.toLowerCase().includes(trimmedId)
+      );
+    }
+  }
+
+  // 3. Fallback general search (Siswa or anything remaining)
+  if (!user) {
+    user = users.find((u) => {
+      if (u.id.toLowerCase() === trimmedId) return true;
+      if (u.username.toLowerCase() === trimmedId) return true;
+      if (u.name.toLowerCase() === trimmedId) return true;
+      if (u.nip && u.nip.trim() === rawId) return true;
+
+      // For Wali Kelas
+      if (u.role === 'wali_kelas' && u.assignedClass && u.assignedClass.toLowerCase() === cleanClassCode) return true;
+
+      // For Siswa (only match student name or NISN/ID, never match on 'wk-*' class format)
+      if (u.role === 'siswa') {
+        if (u.name.toLowerCase().startsWith(trimmedId)) return true;
+        if (activeTab === 'siswa' && u.assignedClass && u.assignedClass.toLowerCase() === trimmedId) return true;
+      }
+
+      return false;
+    });
   }
 
   if (!user) return null;
@@ -791,7 +847,6 @@ export function verifyUserLogin(inputIdentifier: string, inputPass: string): Use
     inputPassClean === 'admin123';
 
   if (user.role === 'wali_kelas') {
-    const classCode = user.assignedClass ? user.assignedClass.toLowerCase() : '';
     if (
       classCode &&
       (
