@@ -41,6 +41,8 @@ export interface NonIslamIbadah {
 export interface KAIHEntry {
   id: string;
   studentId: string;
+  studentName?: string;
+  assignedClass?: ClassName;
   date: string; // YYYY-MM-DD
   fillTimestamp: string; // ISO String or readable time HH:mm
   

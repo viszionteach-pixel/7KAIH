@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, Calendar, FileText, CheckCircle2, XCircle, Clock, Search,
-  Award, ChevronRight, BarChart2, FileSpreadsheet, Printer, Upload
+  Award, ChevronRight, BarChart2, FileSpreadsheet, Printer, Upload, RefreshCw
 } from 'lucide-react';
 import { User, KAIHEntry, ClassName } from '../../types';
-import { getStoredUsers, getStoredLogs, getStoredSchoolConfig } from '../../services/storage';
+import { getStoredUsers, getStoredLogs, getStoredSchoolConfig, forceFetchFromCloud } from '../../services/storage';
 import { DailyPieChart } from '../charts/DailyPieChart';
 import { DailyBarChart, HABIT_NAMES } from '../charts/DailyBarChart';
 import { MonthlyLineChart } from '../charts/MonthlyLineChart';
@@ -29,6 +29,17 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
 
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allLogs, setAllLogs] = useState<KAIHEntry[]>([]);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    await forceFetchFromCloud();
+    setAllUsers(getStoredUsers());
+    setAllLogs(getStoredLogs());
+    setTimeout(() => {
+      setIsSyncing(false);
+    }, 600);
+  };
 
   useEffect(() => {
     const loadData = () => {
@@ -36,6 +47,11 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
       setAllLogs(getStoredLogs());
     };
     loadData();
+
+    // Trigger instant cloud fetch on mount so latest student logs from Firestore are loaded
+    forceFetchFromCloud().then(() => {
+      loadData();
+    });
 
     window.addEventListener('kaih_data_updated', loadData);
     return () => {
@@ -50,25 +66,43 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
   };
 
   // Helper to match log to student
-  const isStudentLog = (logStudentId: string, student: User, logId?: string) => {
-    if (!student) return false;
+  const isStudentLog = (log: KAIHEntry, student: User) => {
+    if (!student || !log) return false;
     const sId = student.id ? student.id.trim().toLowerCase() : '';
     const sUsername = student.username ? student.username.trim().toLowerCase() : '';
     const sName = student.name ? student.name.trim().toLowerCase() : '';
+    const sNisn = student.nisn ? student.nisn.trim().toLowerCase() : '';
+
+    const logStudentId = log.studentId ? log.studentId.trim().toLowerCase() : '';
+    const logStudentName = (log as any).studentName ? (log as any).studentName.trim().toLowerCase() : '';
+    const logAssignedClass = (log as any).assignedClass ? (log as any).assignedClass.trim().toUpperCase() : '';
+    const logId = log.id ? log.id.toLowerCase() : '';
 
     if (logStudentId) {
-      const target = logStudentId.trim().toLowerCase();
-      if (
-        (sId && target === sId) ||
-        (sUsername && target === sUsername) ||
-        (sName && target === sName)
-      ) {
-        return true;
-      }
+      if (sId && logStudentId === sId) return true;
+      if (sUsername && logStudentId === sUsername) return true;
+      if (sName && logStudentId === sName) return true;
+      if (sNisn && logStudentId === sNisn) return true;
     }
-    if (logId && sId && logId.toLowerCase().includes(sId)) {
+
+    if (logStudentName) {
+      if (sName && logStudentName === sName) return true;
+      if (sUsername && logStudentName === sUsername) return true;
+    }
+
+    if (sId && logId.includes(sId)) return true;
+    if (sUsername && logId.includes(sUsername)) return true;
+
+    if (
+      logStudentName &&
+      sName &&
+      (logStudentName.includes(sName) || sName.includes(logStudentName)) &&
+      logAssignedClass &&
+      normalizeClass(student.assignedClass) === normalizeClass(logAssignedClass)
+    ) {
       return true;
     }
+
     return false;
   };
 
@@ -88,7 +122,7 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
   // Filter logs for this class
   const classLogs = React.useMemo(() => {
     return allLogs.filter((l) =>
-      classStudents.some((s) => isStudentLog(l.studentId, s, l.id))
+      classStudents.some((s) => isStudentLog(l, s))
     );
   }, [allLogs, classStudents]);
 
@@ -150,15 +184,27 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
           </p>
         </div>
 
-        {/* Date Selector */}
-        <div className="flex items-center gap-3 bg-slate-900/90 p-3 rounded-xl border border-slate-700 shrink-0">
-          <Calendar className="w-4 h-4 text-amber-400" />
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-slate-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-600 outline-none focus:ring-2 focus:ring-amber-500"
-          />
+        {/* Controls: Sync Button & Date Selector */}
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <button
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            className="flex items-center gap-2 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold rounded-xl shadow transition-all"
+            title="Sikronkan Data Terbaru dari Cloud Firestore"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Menyinkronkan...' : 'Sinkron Cloud'}</span>
+          </button>
+
+          <div className="flex items-center gap-2 bg-slate-900/90 p-2.5 rounded-xl border border-slate-700">
+            <Calendar className="w-4 h-4 text-amber-400" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-slate-800 text-white text-xs font-bold px-3 py-1 rounded-lg border border-slate-600 outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
         </div>
       </div>
 
@@ -291,7 +337,7 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
                 </tr>
               ) : (
                 filteredStudents.map((student, idx) => {
-                  const studentLog = dailyClassLogs.find((l) => isStudentLog(l.studentId, student, l.id));
+                  const studentLog = dailyClassLogs.find((l) => isStudentLog(l, student));
 
                   return (
                     <tr key={student.id} className="hover:bg-amber-50/50 transition-colors">
@@ -343,7 +389,7 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
       {selectedStudentForReport && (
         <MonthlyReportModal
           student={selectedStudentForReport}
-          logs={allLogs.filter((l) => isStudentLog(l.studentId, selectedStudentForReport, l.id))}
+          logs={allLogs.filter((l) => isStudentLog(l, selectedStudentForReport))}
           month={currentMonthNum}
           year={currentYearNum}
           config={{

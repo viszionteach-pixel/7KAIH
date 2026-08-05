@@ -4,7 +4,7 @@ import {
   BookOpen, Award, FileText, Plus, HeartHandshake, FileSpreadsheet
 } from 'lucide-react';
 import { User, KAIHEntry, BKCounselingNote, ClassName } from '../../types';
-import { getStoredUsers, getStoredLogs, getStoredBKNotes, saveBKNote, getStoredSchoolConfig } from '../../services/storage';
+import { getStoredUsers, getStoredLogs, getStoredBKNotes, saveBKNote, getStoredSchoolConfig, forceFetchFromCloud } from '../../services/storage';
 import { ALL_CLASSES } from '../../data/initialData';
 import { DailyBarChart } from '../charts/DailyBarChart';
 import { MonthlyLineChart } from '../charts/MonthlyLineChart';
@@ -41,6 +41,10 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
     };
     loadData();
 
+    forceFetchFromCloud().then(() => {
+      loadData();
+    });
+
     window.addEventListener('kaih_data_updated', loadData);
     return () => {
       window.removeEventListener('kaih_data_updated', loadData);
@@ -61,16 +65,26 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
     const sId = student.id ? student.id.trim().toLowerCase() : '';
     const sUsername = student.username ? student.username.trim().toLowerCase() : '';
     const sName = student.name ? student.name.trim().toLowerCase() : '';
+    const sNisn = student.nisn ? student.nisn.trim().toLowerCase() : '';
 
     return allLogs.find((l) => {
       if (!l.date || l.date.trim() !== selectedDate.trim()) return false;
       const target = l.studentId ? l.studentId.trim().toLowerCase() : '';
-      return (
+      const logStudentName = (l as any).studentName ? (l as any).studentName.trim().toLowerCase() : '';
+      const logId = l.id ? l.id.toLowerCase() : '';
+
+      if (
         (sId && target === sId) ||
         (sUsername && target === sUsername) ||
         (sName && target === sName) ||
-        (l.id && sId && l.id.toLowerCase().includes(sId))
-      );
+        (sNisn && target === sNisn) ||
+        (logStudentName && sName && (logStudentName === sName || logStudentName.includes(sName))) ||
+        (l.id && sId && logId.includes(sId))
+      ) {
+        return true;
+      }
+
+      return false;
     });
   }, [allLogs, selectedDate]);
 

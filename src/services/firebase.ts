@@ -258,6 +258,15 @@ export async function firebaseSaveLogs(logs: KAIHEntry[]): Promise<boolean> {
   });
 }
 
+function getDeletedLogIdsFromStorage(): Set<string> {
+  try {
+    const data = typeof localStorage !== 'undefined' ? localStorage.getItem('kaih_smpn10_deleted_log_ids_v1') : null;
+    return data ? new Set(JSON.parse(data)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
 export async function firebaseSyncAndCleanLogs(activeLogs: KAIHEntry[]): Promise<boolean> {
   if (!db) return false;
   try {
@@ -273,7 +282,9 @@ export async function firebaseSyncAndCleanLogs(activeLogs: KAIHEntry[]): Promise
     }
 
     if (existingDocs.length > 0) {
-      const orphanedDocs = existingDocs.filter((d) => !activeIds.has(d.id));
+      // Only delete if explicitly present in deleted tombstones, never delete active student entries!
+      const deletedLogIds = getDeletedLogIdsFromStorage();
+      const orphanedDocs = existingDocs.filter((d) => deletedLogIds.has(d.id));
       if (orphanedDocs.length > 0) {
         await commitDocsInBatches(orphanedDocs, (batch, d) => {
           batch.delete(d.ref);

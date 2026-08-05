@@ -180,6 +180,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser 
     return {
       id: currentEntry?.id || `log-${currentUser.id}-${selectedDate}`,
       studentId: currentUser.id,
+      studentName: currentUser.name,
+      assignedClass: currentUser.assignedClass,
       date: selectedDate,
       fillTimestamp: new Date().toISOString(),
       bangunPagi: {
