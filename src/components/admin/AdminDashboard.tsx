@@ -28,6 +28,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
   const [activeTab, setActiveTab] = useState<'users' | 'config' | 'classes' | 'data'>('users');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
 
   // Form State for Add User
   const [isAddingUser, setIsAddingUser] = useState(false);
@@ -175,6 +177,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                           (u.assignedClass && u.assignedClass.toLowerCase().includes(searchTerm.toLowerCase()));
     return matchesRole && matchesSearch;
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, roleFilter, pageSize]);
+
+  const totalPages = Math.ceil(filteredUsers.length / pageSize) || 1;
+  const paginatedUsers = React.useMemo(() => {
+    if (pageSize >= 9999) return filteredUsers;
+    const start = (currentPage - 1) * pageSize;
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, currentPage, pageSize]);
 
   // Handle Add User
   const handleCreateUser = (e: React.FormEvent) => {
@@ -745,80 +758,130 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredUsers.map((u) => {
-                  const isChecked = selectedUserIds.includes(u.id);
-                  return (
-                    <tr
-                      key={u.id}
-                      className={`transition-colors ${
-                        isChecked ? 'bg-rose-50/60' : 'hover:bg-slate-50'
-                      }`}
-                    >
-                      <td className="py-4 px-4 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleSelectUser(u.id)}
-                          className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 cursor-pointer accent-rose-600"
-                        />
-                      </td>
-                      <td className="py-4 px-6 font-bold text-slate-900">
-                        {u.name}
-                        {u.nip && (
-                          <span className="block text-[10px] text-slate-500 font-mono font-normal">NIP. {u.nip}</span>
-                        )}
-                        {u.adminTitle && (
-                          <span className="block text-[10px] text-slate-400 font-normal">{u.adminTitle}</span>
-                        )}
-                      </td>
-                      <td className="py-4 px-6 font-mono text-slate-600">{u.username}</td>
-                      <td className="py-4 px-6 font-bold">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-extrabold ${
-                          u.role === 'admin' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
-                          u.role === 'guru_bk' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
-                          u.role === 'wali_kelas' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
-                          'bg-blue-100 text-blue-800 border border-blue-200'
-                        }`}>
-                          {u.role === 'admin' ? 'ADMIN KONSOL' :
-                           u.role === 'guru_bk' ? 'GURU BK' :
-                           u.role === 'wali_kelas' ? 'WALI KELAS' :
-                           'SISWA'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 font-bold text-slate-700">
-                        {u.assignedClass ? `Kelas ${u.assignedClass}` : u.role === 'guru_bk' ? 'Bimbingan Konseling' : u.role === 'admin' ? 'Super Admin' : '-'}
-                      </td>
-                      <td className="py-4 px-6 text-right space-x-1.5">
-                        <button
-                          onClick={() => handleOpenEditUser(u)}
-                          className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
-                          title="Edit Data Pengguna"
-                        >
-                          <Edit className="w-3.5 h-3.5 text-blue-600" /> Edit
-                        </button>
+                {paginatedUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400 text-xs font-bold">
+                      Tidak ada akun pengguna yang sesuai dengan pencarian / filter.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedUsers.map((u) => {
+                    const isChecked = selectedUserIds.includes(u.id);
+                    return (
+                      <tr
+                        key={u.id}
+                        className={`transition-colors ${
+                          isChecked ? 'bg-rose-50/60' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <td className="py-4 px-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleSelectUser(u.id)}
+                            className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 cursor-pointer accent-rose-600"
+                          />
+                        </td>
+                        <td className="py-4 px-6 font-bold text-slate-900">
+                          {u.name}
+                          {u.nip && (
+                            <span className="block text-[10px] text-slate-500 font-mono font-normal">NIP. {u.nip}</span>
+                          )}
+                          {u.adminTitle && (
+                            <span className="block text-[10px] text-slate-400 font-normal">{u.adminTitle}</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-6 font-mono text-slate-600">{u.username}</td>
+                        <td className="py-4 px-6 font-bold">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-extrabold ${
+                            u.role === 'admin' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                            u.role === 'guru_bk' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                            u.role === 'wali_kelas' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                            'bg-blue-100 text-blue-800 border border-blue-200'
+                          }`}>
+                            {u.role === 'admin' ? 'ADMIN KONSOL' :
+                             u.role === 'guru_bk' ? 'GURU BK' :
+                             u.role === 'wali_kelas' ? 'WALI KELAS' :
+                             'SISWA'}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 font-bold text-slate-700">
+                          {u.assignedClass ? `Kelas ${u.assignedClass}` : u.role === 'guru_bk' ? 'Bimbingan Konseling' : u.role === 'admin' ? 'Super Admin' : '-'}
+                        </td>
+                        <td className="py-4 px-6 text-right space-x-1.5">
+                          <button
+                            onClick={() => handleOpenEditUser(u)}
+                            className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
+                            title="Edit Data Pengguna"
+                          >
+                            <Edit className="w-3.5 h-3.5 text-blue-600" /> Edit
+                          </button>
 
-                        <button
-                          onClick={() => setResetPassUser(u)}
-                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
-                          title="Reset Password Akun"
-                        >
-                          <Key className="w-3.5 h-3.5" /> Password
-                        </button>
+                          <button
+                            onClick={() => setResetPassUser(u)}
+                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
+                            title="Reset Password Akun"
+                          >
+                            <Key className="w-3.5 h-3.5" /> Password
+                          </button>
 
-                        <button
-                          onClick={() => handleDeleteUser(u)}
-                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
-                          title="Hapus Akun Pengguna"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Hapus
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                          <button
+                            onClick={() => handleDeleteUser(u)}
+                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-lg text-[11px] inline-flex items-center gap-1 transition-all"
+                            title="Hapus Akun Pengguna"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Hapus
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Footer Bar */}
+          {filteredUsers.length > 0 && (
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-bold text-slate-600">
+              <div className="flex items-center gap-2">
+                <span>Tampilkan per halaman:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-2 focus:ring-rose-500"
+                >
+                  <option value={20}>20 pengguna</option>
+                  <option value={50}>50 pengguna</option>
+                  <option value={100}>100 pengguna</option>
+                  <option value={9999}>Semua pengguna ({filteredUsers.length})</option>
+                </select>
+                <span className="text-slate-500 text-[11px] ml-2">
+                  Menampilkan {Math.min((currentPage - 1) * pageSize + 1, filteredUsers.length)} - {Math.min(currentPage * pageSize, filteredUsers.length)} dari {filteredUsers.length} pengguna
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+                >
+                  &laquo; Prev
+                </button>
+                <span className="px-3 py-1 bg-rose-100 text-rose-900 rounded-lg text-xs font-extrabold">
+                  Halaman {currentPage} dari {totalPages}
+                </span>
+                <button
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+                >
+                  Next &raquo;
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

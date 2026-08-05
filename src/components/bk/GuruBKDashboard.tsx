@@ -22,6 +22,8 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
   );
   const [searchTerm, setSearchTerm] = useState('');
   const [showLowOnly, setShowLowOnly] = useState(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
 
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allLogs, setAllLogs] = useState<KAIHEntry[]>([]);
@@ -113,6 +115,17 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
       return true;
     });
   }, [allStudents, selectedClassFilter, searchTerm, showLowOnly, getStudentLog]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedClassFilter, showLowOnly, pageSize]);
+
+  const totalPages = Math.ceil(filteredStudents.length / pageSize) || 1;
+  const paginatedStudents = React.useMemo(() => {
+    if (pageSize >= 9999) return filteredStudents;
+    const start = (currentPage - 1) * pageSize;
+    return filteredStudents.slice(start, start + pageSize);
+  }, [filteredStudents, currentPage, pageSize]);
 
   // Identify low compliance students (< 50% score) for alert banner
   const lowComplianceStudents = React.useMemo(() => {
@@ -287,20 +300,21 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredStudents.length === 0 ? (
+              {paginatedStudents.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
                     Tidak ada siswa ditemukan
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map((student, idx) => {
+                paginatedStudents.map((student, idx) => {
+                  const absoluteIndex = (currentPage - 1) * pageSize + idx + 1;
                   const studentLog = getStudentLog(student);
                   const isLow = !studentLog || studentLog.scorePercentage < 50;
 
                   return (
                     <tr key={student.id} className={`hover:bg-purple-50/50 transition-colors ${isLow ? 'bg-rose-50/30' : ''}`}>
-                      <td className="py-4 px-6 font-bold text-slate-400">{idx + 1}</td>
+                      <td className="py-4 px-6 font-bold text-slate-400">{absoluteIndex}</td>
                       <td className="py-4 px-6 font-bold text-slate-900">{student.name}</td>
                       <td className="py-4 px-6 font-bold text-purple-700">{student.assignedClass}</td>
                       <td className="py-4 px-6 font-medium text-slate-700">{student.agama || 'Islam'}</td>
@@ -352,6 +366,48 @@ export const GuruBKDashboard: React.FC<GuruBKDashboardProps> = ({ currentUser })
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Footer */}
+        {filteredStudents.length > 0 && (
+          <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-bold text-slate-600">
+            <div className="flex items-center gap-2">
+              <span>Tampilkan per halaman:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value={20}>20 siswa</option>
+                <option value={50}>50 siswa</option>
+                <option value={100}>100 siswa</option>
+                <option value={9999}>Semua siswa ({filteredStudents.length})</option>
+              </select>
+              <span className="text-slate-500 text-[11px] ml-2">
+                Menampilkan {Math.min((currentPage - 1) * pageSize + 1, filteredStudents.length)} - {Math.min(currentPage * pageSize, filteredStudents.length)} dari {filteredStudents.length} siswa
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+              >
+                &laquo; Prev
+              </button>
+              <span className="px-3 py-1 bg-purple-100 text-purple-900 rounded-lg text-xs font-extrabold">
+                Halaman {currentPage} dari {totalPages}
+              </span>
+              <button
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+              >
+                Next &raquo;
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add Counseling Note Modal */}
