@@ -179,7 +179,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onOpenAb
                       activeTab === 'admin'
                         ? 'Contoh: admin1 atau admin2'
                         : activeTab === 'guru'
-                        ? 'Contoh: walikelas.7a atau gurubk1'
+                        ? 'Contoh: wk-7a atau gurubk1'
                         : 'Contoh: Ahmad Fauzi'
                     }
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-600 focus:bg-white outline-none transition-all"
@@ -201,12 +201,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onOpenAb
                       activeTab === 'admin'
                         ? 'Password Admin / Kepala Sekolah (admin123)'
                         : activeTab === 'guru'
-                        ? 'Password Wali Kelas / BK'
+                        ? 'Contoh: wk7a (sesuai kelas)'
                         : 'NamaDepan123 (contoh: Ahmad123)'
                     }
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-600 focus:bg-white outline-none transition-all"
                   />
                 </div>
+
+                {isAdminUnlocked && activeTab === 'guru' && (
+                  <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-2 flex items-center gap-1.5">
+                    <HelpCircle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                    <span>Format Wali Kelas — User ID: <strong>wk-7a</strong> | Password: <strong>wk7a</strong> (sesuai kelas)</span>
+                  </p>
+                )}
 
                 {!isAdminUnlocked && activeTab === 'siswa' && (
                   <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-2 flex items-center gap-1.5">

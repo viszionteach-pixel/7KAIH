@@ -720,7 +720,7 @@ export function getDefaultPasswordForUser(user: User): string {
     return `${firstName}123`;
   }
   if (user.role === 'wali_kelas') {
-    return user.assignedClass ? `${user.assignedClass}123` : 'walikelas123';
+    return user.assignedClass ? `wk${user.assignedClass.toLowerCase()}` : 'wk7a';
   }
   if (user.role === 'guru_bk') {
     return 'bk123';
@@ -734,9 +734,12 @@ export function verifyUserLogin(inputIdentifier: string, inputPass: string): Use
   
   const user = users.find(
     (u) =>
-      u.name.toLowerCase() === trimmedId ||
+      u.id.toLowerCase() === trimmedId ||
       u.username.toLowerCase() === trimmedId ||
+      u.name.toLowerCase() === trimmedId ||
       (u.assignedClass && u.assignedClass.toLowerCase() === trimmedId) ||
+      (u.assignedClass && `wk-${u.assignedClass.toLowerCase()}` === trimmedId) ||
+      (u.assignedClass && `wk${u.assignedClass.toLowerCase()}` === trimmedId) ||
       (u.role === 'siswa' && u.name.toLowerCase().startsWith(trimmedId))
   );
 
@@ -745,7 +748,25 @@ export function verifyUserLogin(inputIdentifier: string, inputPass: string): Use
   const customPassMap = getCustomPasswords();
   const expectedPass = customPassMap[user.id] || getDefaultPasswordForUser(user);
 
-  if (inputPass === expectedPass || inputPass === '123456' || inputPass === 'admin123' || inputPass.toLowerCase() === expectedPass.toLowerCase()) {
+  const inputPassLower = inputPass.trim().toLowerCase();
+  const expectedPassLower = expectedPass.toLowerCase();
+
+  let isPasswordValid =
+    inputPassLower === expectedPassLower ||
+    inputPass === '123456' ||
+    inputPass === 'admin123';
+
+  if (user.role === 'wali_kelas' && user.assignedClass) {
+    const classCode = user.assignedClass.toLowerCase();
+    if (
+      inputPassLower === `wk${classCode}` ||
+      inputPassLower === `wk-${classCode}`
+    ) {
+      isPasswordValid = true;
+    }
+  }
+
+  if (isPasswordValid) {
     return user;
   }
 
