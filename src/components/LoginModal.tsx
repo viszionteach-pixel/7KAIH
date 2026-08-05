@@ -45,7 +45,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onOpenAb
     if (user) {
       onLoginSuccess(user);
     } else {
-      setErrorMsg('Nama atau Password salah. (Perhatikan: Password siswa adalah NamaDepan123, cth: Ahmad123)');
+      if (activeTab === 'guru') {
+        setErrorMsg('User ID atau Password Wali Kelas / Guru BK salah. (Contoh User ID: wk-8h | Password: wk8h)');
+      } else if (activeTab === 'admin') {
+        setErrorMsg('Username atau Password Admin / Kepala Sekolah salah. (Password: admin123)');
+      } else {
+        setErrorMsg('Nama atau Password siswa salah. (Format password default: NamaDepan123, cth: Ahmad123)');
+      }
     }
   };
 
