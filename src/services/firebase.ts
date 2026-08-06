@@ -114,17 +114,14 @@ async function fetchDocsWithFallback(colRef: any) {
   try {
     const cacheSnap = await getDocsFromCache(colRef);
     if (cacheSnap && !cacheSnap.empty) {
-      // Background sync to keep cache fresh
-      getDocs(colRef).catch(() => {});
       return cacheSnap;
     }
   } catch {}
 
-  // If cache is empty, fetch from server with a generous 30s timeout (essential for 1,100+ documents on mobile 4G)
+  // If cache is empty, fetch from server with a 30s timeout
   try {
     return await withTimeout(getDocs(colRef), 30000);
   } catch (err) {
-    // Secondary attempt from cache in case server timed out or went offline mid-request
     try {
       const cacheSnap = await getDocsFromCache(colRef);
       if (cacheSnap) return cacheSnap;
@@ -137,7 +134,6 @@ async function fetchDocWithFallback(docRef: any) {
   try {
     const cacheSnap = await getDocFromCache(docRef);
     if (cacheSnap && cacheSnap.exists()) {
-      getDoc(docRef).catch(() => {});
       return cacheSnap;
     }
   } catch {}
@@ -428,47 +424,9 @@ export async function firebaseFetchCustomPasswords(): Promise<Record<string, str
 }
 
 // ================= REALTIME SUBSCRIPTION =================
-export function subscribeToFirebaseRealtime(onDataChange: () => void): () => void {
-  if (!db) return () => {};
-  try {
-    const unsubs: (() => void)[] = [];
-
-    const handleSnapshot = (snapshot: any) => {
-      if (!snapshot.metadata.hasPendingWrites) {
-        onDataChange();
-      }
-    };
-
-    unsubs.push(
-      onSnapshot(
-        collection(db, 'kaih_logs'),
-        handleSnapshot,
-        (err) => console.info('[Firebase Realtime Listener Logs Info]', err?.message || err)
-      )
-    );
-
-    unsubs.push(
-      onSnapshot(
-        collection(db, 'kaih_passwords'),
-        handleSnapshot,
-        (err) => console.info('[Firebase Realtime Listener Passwords Info]', err?.message || err)
-      )
-    );
-
-    unsubs.push(
-      onSnapshot(
-        collection(db, 'kaih_users'),
-        handleSnapshot,
-        (err) => console.info('[Firebase Realtime Listener Users Info]', err?.message || err)
-      )
-    );
-
-    return () => {
-      unsubs.forEach((unsub) => unsub());
-    };
-  } catch {
-    return () => {};
-  }
+// Disabled full-collection onSnapshot listeners to protect Firebase Spark Plan free tier quota (prevents 25,000+ real-time reads loop).
+export function subscribeToFirebaseRealtime(_onDataChange: () => void): () => void {
+  return () => {};
 }
 
 // ================= DIAGNOSTICS SUITE =================

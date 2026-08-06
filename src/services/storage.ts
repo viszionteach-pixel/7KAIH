@@ -236,10 +236,6 @@ function mergeRemoteLogs(remoteLogs: KAIHEntry[]): KAIHEntry[] {
   const result = Array.from(mergedMap.values());
   localStorage.setItem(KEYS.LOGS, JSON.stringify(result));
 
-  if (logsToPush.length > 0 && !isRemoteUpdating) {
-    firebaseSaveLogs(logsToPush);
-  }
-
   return result;
 }
 
@@ -283,7 +279,7 @@ function mergeRemotePasswords(remotePasswords: Record<string, string>) {
   localStorage.setItem(KEYS.CUSTOM_PASSWORDS, JSON.stringify(merged));
 }
 
-// Force sync directly from Firebase Firestore
+// Force sync directly from Firebase Firestore (READ-ONLY to save quota)
 export async function forceFetchFromCloud(): Promise<boolean> {
   try {
     isRemoteUpdating = true;
@@ -307,25 +303,14 @@ export async function forceFetchFromCloud(): Promise<boolean> {
 
     if (fbUsers && fbUsers.length > 0) {
       mergeRemoteUsers(fbUsers);
-    } else {
-      const localUsers = getStoredUsers();
-      firebaseSyncAndCleanUsers(localUsers);
     }
 
     if (fbLogs && fbLogs.length > 0) {
       mergeRemoteLogs(fbLogs);
-    } else {
-      const localLogs = getStoredLogs();
-      if (localLogs.length > 0) {
-        firebaseSyncAndCleanLogs(localLogs);
-      }
     }
 
     if (fbConfig) {
       mergeRemoteSchoolConfig(fbConfig);
-    } else {
-      const localConfig = getStoredSchoolConfig();
-      firebaseSaveSchoolConfig(localConfig);
     }
 
     if (fbNotes && fbNotes.length > 0) {
@@ -361,7 +346,7 @@ export async function forceFetchFromCloud(): Promise<boolean> {
   }
 }
 
-// Initialize Realtime Synchronization across all devices via Firebase
+// Initialize Synchronization across devices
 let isInitialized = false;
 export async function initFirebaseRealtimeSync() {
   if (isInitialized) return;
@@ -374,32 +359,8 @@ export async function initFirebaseRealtimeSync() {
     console.warn('[Storage] Could not enable IndexedDB persistence:', err);
   }
 
-  // 2. Initial Cloud Sync
+  // 2. Initial Cloud Sync (Read-only)
   await forceFetchFromCloud();
-
-  // 3. Realtime Listener from Firebase
-  subscribeToFirebaseRealtime(() => {
-    forceFetchFromCloud();
-  });
-
-  // 3. Tab Focus & Visibility listener to instantly fetch latest data when device screen wakes or tab opens
-  if (typeof window !== 'undefined') {
-    window.addEventListener('focus', () => {
-      forceFetchFromCloud();
-    });
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        forceFetchFromCloud();
-      }
-    });
-
-    // 4. Background auto-polling timer every 60 minutes (3,600,000 ms) as a light safety fallback
-    setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        forceFetchFromCloud();
-      }
-    }, 3600000);
-  }
 }
 
 export const initRealtimeSync = initFirebaseRealtimeSync;
@@ -488,6 +449,12 @@ export function saveStoredUsers(users: User[]): void {
   const deletedIds = Array.from(currentIds).filter((id) => !newIds.has(id));
   deletedIds.forEach((id) => recordDeletedUserId(id));
 
+  // Find changed or new user entries
+  const changedOrNewUsers = users.filter((u) => {
+    const prev = previousUsers.find((p) => p.id === u.id);
+    return !prev || JSON.stringify(prev) !== JSON.stringify(u);
+  });
+
   // Remove any active user IDs from deleted tombstones
   const deletedSet = getDeletedUserIds();
   let tombstoneChanged = false;
@@ -504,8 +471,8 @@ export function saveStoredUsers(users: User[]): void {
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
   notifyDataChanged();
 
-  if (!isRemoteUpdating) {
-    retryWithExponentialBackoff(() => firebaseSyncAndCleanUsers(users)).catch((err) =>
+  if (!isRemoteUpdating && changedOrNewUsers.length > 0) {
+    retryWithExponentialBackoff(() => firebaseSaveUsers(changedOrNewUsers)).catch((err) =>
       console.info('[Storage Backoff Info] Sync users retry failed:', err)
     );
   }
