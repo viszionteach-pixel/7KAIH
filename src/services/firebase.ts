@@ -110,18 +110,11 @@ function withTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
 
 // Fetch helper with IndexedDB cache fallback on timeout or error
 async function fetchDocsWithFallback(colRef: any) {
-  // First check if IndexedDB cache already has documents for immediate response
+  // First attempt to fetch fresh documents from Cloud Firestore server
   try {
-    const cacheSnap = await getDocsFromCache(colRef);
-    if (cacheSnap && !cacheSnap.empty) {
-      return cacheSnap;
-    }
-  } catch {}
-
-  // If cache is empty, fetch from server with a 30s timeout
-  try {
-    return await withTimeout(getDocs(colRef), 30000);
+    return await withTimeout(getDocs(colRef), 12000);
   } catch (err) {
+    // If server fetch times out or fails (e.g. offline mode), fall back to local IndexedDB cache
     try {
       const cacheSnap = await getDocsFromCache(colRef);
       if (cacheSnap) return cacheSnap;
@@ -132,14 +125,7 @@ async function fetchDocsWithFallback(colRef: any) {
 
 async function fetchDocWithFallback(docRef: any) {
   try {
-    const cacheSnap = await getDocFromCache(docRef);
-    if (cacheSnap && cacheSnap.exists()) {
-      return cacheSnap;
-    }
-  } catch {}
-
-  try {
-    return await withTimeout(getDoc(docRef), 20000);
+    return await withTimeout(getDoc(docRef), 10000);
   } catch (err) {
     try {
       const cacheSnap = await getDocFromCache(docRef);

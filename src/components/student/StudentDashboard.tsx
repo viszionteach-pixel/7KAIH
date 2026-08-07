@@ -4,7 +4,7 @@ import {
   CheckCircle2, Clock, Calendar, Save, AlertCircle, FileText, Check, Award
 } from 'lucide-react';
 import { User, KAIHEntry, Agama, SholatWaktuStatus, NonIslamIbadah } from '../../types';
-import { getStoredLogs, addOrUpdateLog, getStoredSchoolConfig, getStoredUsers } from '../../services/storage';
+import { getStoredLogs, addOrUpdateLog, getStoredSchoolConfig, getStoredUsers, getTodayIDDate } from '../../services/storage';
 import { DailyPieChart } from '../charts/DailyPieChart';
 import { DailyBarChart } from '../charts/DailyBarChart';
 import { MonthlyLineChart } from '../charts/MonthlyLineChart';
@@ -15,9 +15,7 @@ interface StudentDashboardProps {
 }
 
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({ currentUser }) => {
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayIDDate());
   const [logs, setLogs] = useState<KAIHEntry[]>([]);
   const [currentEntry, setCurrentEntry] = useState<KAIHEntry | null>(null);
   const [isSavedToast, setIsSavedToast] = useState(false);

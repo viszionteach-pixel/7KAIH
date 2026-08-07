@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, Calendar, FileText, CheckCircle2, XCircle, Clock, Search,
-  Award, ChevronRight, BarChart2, FileSpreadsheet, Printer, Upload, RefreshCw
+  Award, ChevronRight, BarChart2, FileSpreadsheet, Printer, Upload, RefreshCw, Database
 } from 'lucide-react';
 import { User, KAIHEntry, ClassName } from '../../types';
-import { getStoredUsers, getStoredLogs, getStoredSchoolConfig, forceFetchFromCloud } from '../../services/storage';
+import {
+  getStoredUsers,
+  getStoredLogs,
+  getStoredSchoolConfig,
+  forceFetchFromCloud,
+  getTodayIDDate,
+  getLastSyncTime,
+  validateFirestoreSync
+} from '../../services/storage';
 import { DailyPieChart } from '../charts/DailyPieChart';
 import { DailyBarChart, HABIT_NAMES } from '../charts/DailyBarChart';
 import { MonthlyLineChart } from '../charts/MonthlyLineChart';
@@ -19,9 +27,7 @@ interface WaliKelasDashboardProps {
 export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentUser }) => {
   const assignedClass: ClassName = currentUser.assignedClass || '7A';
 
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayIDDate());
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(20);
@@ -32,21 +38,35 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allLogs, setAllLogs] = useState<KAIHEntry[]>([]);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [lastSyncText, setLastSyncText] = useState<string>(getLastSyncTime());
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const handleManualSync = async () => {
     setIsSyncing(true);
     await forceFetchFromCloud();
     setAllUsers(getStoredUsers());
     setAllLogs(getStoredLogs());
+    setLastSyncText(getLastSyncTime());
     setTimeout(() => {
       setIsSyncing(false);
     }, 600);
+  };
+
+  const handleValidateSync = async () => {
+    setIsSyncing(true);
+    const result = await validateFirestoreSync();
+    setAllUsers(getStoredUsers());
+    setAllLogs(getStoredLogs());
+    setLastSyncText(result.lastSyncTime);
+    setSyncMessage(result.message);
+    setIsSyncing(false);
   };
 
   useEffect(() => {
     const loadData = () => {
       setAllUsers(getStoredUsers());
       setAllLogs(getStoredLogs());
+      setLastSyncText(getLastSyncTime());
     };
     loadData();
 
@@ -139,13 +159,31 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
     );
   }, [allLogs, classStudents]);
 
+  const matchesDate = (l: KAIHEntry, targetDate: string) => {
+    if (!l || !targetDate) return false;
+    const tDate = targetDate.trim();
+    if (l.date && l.date.trim() === tDate) return true;
+    if (l.fillTimestamp) {
+      try {
+        const d = new Date(l.fillTimestamp);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        if (`${year}-${month}-${day}` === tDate) return true;
+      } catch {}
+    }
+    return false;
+  };
+
   const dailyClassLogs = React.useMemo(() => {
-    return classLogs.filter((l) => l.date && l.date.trim() === selectedDate.trim());
+    return classLogs.filter((l) => matchesDate(l, selectedDate));
   }, [classLogs, selectedDate]);
 
   // Daily statistics for this class
   const totalStudents = classStudents.length || 1;
-  const filledStudentsCount = dailyClassLogs.length;
+  const filledStudentsCount = classStudents.filter((s) =>
+    dailyClassLogs.some((l) => isStudentLog(l, s))
+  ).length;
 
   const totalCompletedHabits = dailyClassLogs.reduce((acc, l) => acc + l.completedCount, 0);
   const totalPossibleDailyHabits = totalStudents * 7;
@@ -220,6 +258,45 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
           </div>
         </div>
       </div>
+
+      {/* Indikator Status Sinkronisasi Firestore */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl">
+            <Database className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Status Cloud Firestore: Terhubung
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Waktu Terakhir Disinkronkan: <strong className="text-white font-mono">{lastSyncText}</strong> • Total <strong className="text-amber-300">{allLogs.length} dokumen log</strong> tercatat.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleValidateSync}
+          disabled={isSyncing}
+          className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow flex items-center gap-2 transition-all disabled:opacity-50 shrink-0"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+          <span>{isSyncing ? 'Memvalidasi...' : 'Validasi Sinkronisasi Firestore'}</span>
+        </button>
+      </div>
+
+      {syncMessage && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-xl flex items-center justify-between shadow-sm animate-fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{syncMessage}</span>
+          </div>
+          <button onClick={() => setSyncMessage(null)} className="text-emerald-600 hover:text-emerald-900 font-bold ml-2">✕</button>
+        </div>
+      )}
 
       {/* Overview Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -352,6 +429,7 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
                 paginatedStudents.map((student, idx) => {
                   const absoluteIndex = (currentPage - 1) * pageSize + idx + 1;
                   const studentLog = dailyClassLogs.find((l) => isStudentLog(l, student));
+                  const totalStudentLogs = allLogs.filter((l) => isStudentLog(l, student)).length;
 
                   return (
                     <tr key={student.id} className="hover:bg-amber-50/50 transition-colors">
@@ -359,6 +437,10 @@ export const WaliKelasDashboard: React.FC<WaliKelasDashboardProps> = ({ currentU
                       <td className="py-4 px-6">
                         <div className="font-bold text-slate-900 text-sm">{student.name}</div>
                         <div className="text-[11px] text-slate-500">Password default: {student.name.split(' ')[0]}123</div>
+                        <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] font-bold">
+                          <Database className="w-3 h-3 text-blue-500 shrink-0" />
+                          <span>Firestore: <strong>{totalStudentLogs} Dokumen Log</strong></span>
+                        </div>
                       </td>
                       <td className="py-4 px-6 font-medium text-slate-700">{student.agama || 'Islam'}</td>
                       <td className="py-4 px-6 text-center">

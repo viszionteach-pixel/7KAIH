@@ -30,7 +30,30 @@ const KEYS = {
   DELETED_USER_IDS: 'kaih_smpn10_deleted_user_ids_v1',
   DELETED_LOG_IDS: 'kaih_smpn10_deleted_log_ids_v1',
   DELETED_BK_NOTE_IDS: 'kaih_smpn10_deleted_bk_note_ids_v1',
+  LAST_SYNC: 'kaih_smpn10_last_sync_v1',
 };
+
+export function getLastSyncTime(): string {
+  return localStorage.getItem(KEYS.LAST_SYNC) || 'Belum pernah disinkronkan';
+}
+
+export function updateLastSyncTime(): string {
+  const d = new Date();
+  const timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const dateStr = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  const formatted = `${timeStr} - ${dateStr}`;
+  localStorage.setItem(KEYS.LAST_SYNC, formatted);
+  return formatted;
+}
+
+// Helper to get local date in YYYY-MM-DD format (avoids UTC timezone shifts)
+export function getTodayIDDate(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 // Dispatch custom event to notify all React components of data update
 export function notifyDataChanged() {
@@ -322,6 +345,7 @@ export async function forceFetchFromCloud(): Promise<boolean> {
     }
 
     isRemoteUpdating = false;
+    updateLastSyncTime();
 
     const currUsersStr = localStorage.getItem(KEYS.USERS) || '';
     const currLogsStr = localStorage.getItem(KEYS.LOGS) || '';
@@ -343,6 +367,39 @@ export async function forceFetchFromCloud(): Promise<boolean> {
     console.error('Failed to force sync from Firebase Firestore:', err);
     isRemoteUpdating = false;
     return false;
+  }
+}
+
+export interface FirestoreValidationResult {
+  success: boolean;
+  lastSyncTime: string;
+  totalLogsCount: number;
+  totalUsersCount: number;
+  message: string;
+}
+
+export async function validateFirestoreSync(): Promise<FirestoreValidationResult> {
+  const success = await forceFetchFromCloud();
+  const syncTime = getLastSyncTime();
+  const logs = getStoredLogs();
+  const users = getStoredUsers();
+
+  if (success) {
+    return {
+      success: true,
+      lastSyncTime: syncTime,
+      totalLogsCount: logs.length,
+      totalUsersCount: users.length,
+      message: `Terhubung ke Cloud Firestore (${syncTime}). Total ${logs.length} dokumen log pengisian siswa dari ${users.length} pengguna telah tercatat.`
+    };
+  } else {
+    return {
+      success: false,
+      lastSyncTime: syncTime,
+      totalLogsCount: logs.length,
+      totalUsersCount: users.length,
+      message: `Gagal memperbarui dari Firestore Cloud. Menggunakan data cache lokal (${logs.length} dokumen log).`
+    };
   }
 }
 
